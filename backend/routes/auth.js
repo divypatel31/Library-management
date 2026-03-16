@@ -1,54 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const db = require('../config/db'); //
 
-// @route   POST /api/auth/login
-// @desc    Auth user & get token
-// @access  Public
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-
+// @route   POST /api/auth/register
+router.post('/register', async (req, res) => {
   try {
-    const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    const { name, email, password, role } = req.body;
     
-    if (users.length === 0) {
-       return res.status(401).json({ message: 'Invalid email or password' });
-    }
+    // 1. Hash password manually since Mongoose hooks are gone
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = users[0];
-    const isMatch = await bcrypt.compare(password, user.password);
+    // 2. Use MySQL query
+    await db.query(
+      'INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, ?)',
+      [name, email, hashedPassword, role || 'student']
+    );
 
-    if (isMatch) {
-      const capRole = user.role.charAt(0).toUpperCase() + user.role.slice(1);
-      
-      res.json({
-        _id: user.user_id,
-        name: user.full_name,
-        email: user.email,
-        role: capRole,
-        token: jwt.sign({ id: user.user_id }, process.env.JWT_SECRET || 'secret123', {
-          expiresIn: '30d',
-        }),
-      });
-    } else {
-      res.status(401).json({ message: 'Invalid email or password' });
-    }
+    res.status(201).json({ message: 'User created' });
   } catch (error) {
-    res.status(500).json({ message: 'Server error: ' + error.message });
-  }
-});
-
-// @route   GET /api/auth/me
-// @desc    Get current logged in user
-// @access  Private
-const { protect } = require('../middleware/auth');
-router.get('/me', protect, async (req, res) => {
-  try {
-    res.json(req.user);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: error.message });
   }
 });
 

@@ -108,3 +108,22 @@ router.delete('/:id', protect, authorize('Admin', 'Librarian'), async (req, res)
 });
 
 module.exports = router;
+
+// @route   POST /api/books
+router.post('/', protect, authorize('Admin', 'Librarian'), async (req, res) => {
+  try {
+    const { title, author, isbn, category, quantity, coverImage } = req.body;
+
+    // Use coverImage from body or a default if empty
+    const finalImage = coverImage || 'https://via.placeholder.com/150';
+
+    const [result] = await db.query(
+      'INSERT INTO books (title, author, isbn, category, quantity, available_quantity, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [title, author, isbn, category, quantity, quantity, finalImage]
+    );
+
+    res.status(201).json({ book_id: result.insertId, title, author });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});

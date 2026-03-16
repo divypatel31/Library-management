@@ -29,7 +29,8 @@ const DataTable = ({ columns, data, onRowClick }) => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: rowIndex * 0.05 }}
-                key={row.id || rowIndex}
+                // UPDATE: Support multiple ID formats from MySQL queries
+                key={row.book_id || row.user_id || row.issue_id || row._id || rowIndex}
                 onClick={() => onRowClick && onRowClick(row)}
                 className={`transition-colors duration-200 ${
                   onRowClick ? 'cursor-pointer hover:bg-slate-50' : ''

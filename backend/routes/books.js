@@ -1,16 +1,11 @@
-// backend/routes/books.js
 const express = require('express');
 const router = express.Router();
-const { getAllBooks, addBook, updateBook, deleteBook } = require('../controllers/bookController'); // Logic moved here
+const { getBooks, createBook, updateBook, deleteBook } = require('../controllers/bookController');
 const { protect, authorize } = require('../middleware/auth');
 
-// Simplified Routes pointing to Controller functions
-router.route('/')
-  .get(protect, getAllBooks)
-  .post(protect, authorize('Admin', 'Librarian'), addBook);
-
-router.route('/:id')
-  .put(protect, authorize('Admin', 'Librarian'), updateBook)
-  .delete(protect, authorize('Admin', 'Librarian'), deleteBook);
+router.get('/', protect, getBooks);
+router.post('/', protect, authorize('Admin', 'Librarian'), createBook);
+router.put('/:id', protect, authorize('Admin', 'Librarian'), updateBook);
+router.delete('/:id', protect, authorize('Admin', 'Librarian'), deleteBook);
 
 module.exports = router;

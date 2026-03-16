@@ -1,0 +1,19 @@
+[
+  {
+    "_id": 2,
+    "status": "pending",
+    "requestDate": "2026-03-10T18:55:10.000Z",
+    "book": {
+      "_id": 1,
+      "title": "B",
+      "author": "God",
+      "coverImage": "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=300"
+    },
+    "user": {
+      "_id": 5,
+      "name": "divy",
+      "email": "divypateln@gmail.com",
+      "role": "Student"
+    }
+  }
+]

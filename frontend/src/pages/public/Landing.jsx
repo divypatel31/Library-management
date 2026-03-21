@@ -41,7 +41,7 @@ const Landing = () => {
              <Library className="text-indigo-600 relative z-10" size={24} />
           </div>
           <span className="text-2xl font-display font-bold text-slate-800 tracking-tight">
-            AutoLib<span className="text-indigo-600">.ai</span>
+            Welcome to Liborbit<span className="text-indigo-600"></span>
           </span>
         </motion.div>
         

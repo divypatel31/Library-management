@@ -2,30 +2,79 @@ const db = require('../config/db');
 
 exports.getIssues = async (req, res) => {
   try {
+    const { role, id } = req.user; 
+
+    // REMOVED fine_amount and cover_image to prevent 500 crash
     let query = `
-      SELECT i.issue_id AS _id, i.issue_date AS issueDate, i.due_date AS dueDate, i.return_date AS returnDate, i.status,
-             b.book_id AS bookId, b.title, b.author,
-             u.user_id AS userId, u.full_name AS name, u.email, u.role, u.roll_no AS rollNo, u.department,
-             (SELECT SUM(amount) FROM fines f WHERE f.issue_id = i.issue_id AND f.status = 'pending') AS fineAmount
-      FROM issued_books i JOIN books b ON i.book_id = b.book_id JOIN users u ON i.user_id = u.user_id
+      SELECT 
+        i.issue_id AS _id, 
+        i.issue_date AS issueDate, 
+        i.due_date AS dueDate, 
+        i.return_date AS returnDate, 
+        i.status, 
+        
+        b.book_id AS bookId, 
+        b.title AS bookTitle, 
+        b.author AS bookAuthor, 
+        b.isbn AS bookIsbn, 
+        
+        u.user_id AS userId, 
+        u.full_name AS userName, 
+        u.email AS userEmail, 
+        u.roll_no AS userRollNo, 
+        u.department AS userDepartment, 
+        u.role AS userRole
+      FROM issued_books i
+      JOIN books b ON i.book_id = b.book_id
+      JOIN users u ON i.user_id = u.user_id
     `;
-    let params = [];
-    if (req.user.role === 'Student' || req.user.role === 'Professor') {
+
+    let queryParams = [];
+
+    // SMART SECURITY: If they are a Student/Professor, only show their own history
+    if (role === 'Student' || role === 'Professor') {
       query += ` WHERE i.user_id = ?`;
-      params.push(req.user.id);
+      queryParams.push(id);
     }
+
+    // Sort by most recently issued first
     query += ` ORDER BY i.issue_date DESC`;
-    const [issues] = await db.query(query, params);
-    
-    const formatted = issues.map(issue => ({
-       _id: issue._id, issueDate: issue.issueDate, dueDate: issue.dueDate, returnDate: issue.returnDate,
-       status: issue.status.charAt(0).toUpperCase() + issue.status.slice(1), fineAmount: issue.fineAmount || 0,
-       book: { _id: issue.bookId, title: issue.title, author: issue.author, coverImage: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=300' },
-       user: { _id: issue.userId, name: issue.name, email: issue.email, role: issue.role.charAt(0).toUpperCase() + issue.role.slice(1), rollNo: issue.rollNo, department: issue.department }
+
+    const [rows] = await db.query(query, queryParams);
+
+    // Format the flat SQL rows into nested JSON objects
+    const formattedIssues = rows.map(row => ({
+      _id: row._id,
+      issueDate: row.issueDate,
+      dueDate: row.dueDate,
+      returnDate: row.returnDate,
+      status: row.status,
+      // Default fine to 0 for the frontend (since it's in another table)
+      fineAmount: 0, 
+      
+      book: {
+        _id: row.bookId,
+        title: row.bookTitle,
+        author: row.bookAuthor,
+        isbn: row.bookIsbn
+      },
+      
+      user: {
+        _id: row.userId,
+        name: row.userName, 
+        email: row.userEmail,
+        rollNo: row.userRollNo,
+        department: row.userDepartment,
+        role: row.userRole
+      }
     }));
-    res.json(formatted);
+
+    res.json(formattedIssues);
+
   } catch (error) {
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    // This logs the EXACT SQL error to your backend terminal so we can see what went wrong!
+    console.error('Fetch Issues SQL Error:', error.message);
+    res.status(500).json({ message: 'Server error while fetching issue history: ' + error.message });
   }
 };
 
@@ -63,35 +112,73 @@ exports.issueBook = async (req, res) => {
   }
 };
 
+// Return a book and calculate fines safely
 exports.returnBook = async (req, res) => {
-  const connection = await db.getConnection();
+  const connection = await db.getConnection(); 
+  
   try {
     await connection.beginTransaction();
+    
     const issueId = req.params.id;
-    const [issues] = await connection.query('SELECT * FROM issued_books WHERE issue_id = ? FOR UPDATE', [issueId]);
+
+    // 1. Get the issue details
+    const [issues] = await connection.query(
+      'SELECT book_id, user_id, due_date, status FROM issued_books WHERE issue_id = ? FOR UPDATE',
+      [issueId]
+    );
+
     if (issues.length === 0) {
-      await connection.rollback(); return res.status(404).json({ message: 'Issue record not found' });
+      await connection.rollback();
+      return res.status(404).json({ message: 'Issue record not found' });
     }
+
     const issue = issues[0];
     if (issue.status === 'returned') {
-      await connection.rollback(); return res.status(400).json({ message: 'Book already returned' });
+      await connection.rollback();
+      return res.status(400).json({ message: 'This book has already been returned.' });
     }
-    const returnDate = new Date();
-    await connection.query('UPDATE issued_books SET status = ?, return_date = ? WHERE issue_id = ?', ['returned', returnDate, issueId]);
 
-    let fine = 0; const dueDate = new Date(issue.due_date);
-    if (returnDate > dueDate) {
-      const diffTime = Math.abs(returnDate - dueDate);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); fine = diffDays * 2;
-      await connection.query('INSERT INTO fines (issue_id, user_id, amount, status) VALUES (?, ?, ?, ?)', [issueId, issue.user_id, fine, 'pending']);
+    // 2. CALCULATE FINES LOGIC
+    const dueDate = new Date(issue.due_date);
+    const today = new Date();
+    
+    dueDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    let fineAmount = 0;
+    const FINE_PER_DAY = 10; // ₹10 per day late
+
+    if (today > dueDate) {
+      const diffTime = Math.abs(today - dueDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+      fineAmount = diffDays * FINE_PER_DAY;
     }
-    await connection.query('UPDATE books SET available_quantity = available_quantity + 1 WHERE book_id = ?', [issue.book_id]);
+
+    // 3. Update the issued_books record (This automatically makes the book available again!)
+    await connection.query(
+      'UPDATE issued_books SET status = "returned", return_date = NOW() WHERE issue_id = ?',
+      [issueId]
+    );
+
+    // Step 4 (updating the books table directly) was removed because 'available' is calculated dynamically!
+
+    // 5. If they are late, create a fine record
+    if (fineAmount > 0) {
+      await connection.query(
+        'INSERT INTO fines (user_id, issue_id, amount, status) VALUES (?, ?, ?, "pending")',
+        [issue.user_id, issueId, fineAmount]
+      );
+    }
+
+    // 6. Success!
     await connection.commit();
-    res.json({ message: 'Book returned successfully', fine });
+    res.json({ message: 'Book returned successfully', fine: fineAmount });
+
   } catch (error) {
-     if (connection) await connection.rollback();
-     res.status(500).json({ message: 'Server error: ' + error.message });
+    await connection.rollback();
+    console.error('🔥 Return Book Error:', error.message);
+    res.status(500).json({ message: 'Server error: ' + error.message });
   } finally {
-     if (connection) connection.release();
+    connection.release();
   }
 };

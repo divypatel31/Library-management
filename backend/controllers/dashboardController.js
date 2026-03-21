@@ -33,16 +33,65 @@ exports.getStats = async (req, res) => {
 };
 
 exports.getChartData = async (req, res) => {
-   console.log(`[DASHBOARD] Fetching chart data`);
+   console.log(`[DASHBOARD] Fetching real chart data for the last 7 days`);
    try {
+     const labels = [];
+     const dates = [];
+     const issuedData = [0, 0, 0, 0, 0, 0, 0];
+     const returnedData = [0, 0, 0, 0, 0, 0, 0];
+
+     // 1. Generate the last 7 days (Labels and SQL-friendly date strings)
+     for (let i = 6; i >= 0; i--) {
+       const d = new Date();
+       d.setDate(d.getDate() - i);
+       
+       // E.g. "Mon", "Tue"
+       labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+
+       // E.g. "2024-03-20" to match MySQL format
+       const year = d.getFullYear();
+       const month = String(d.getMonth() + 1).padStart(2, '0');
+       const day = String(d.getDate()).padStart(2, '0');
+       dates.push(`${year}-${month}-${day}`);
+     }
+
+     // 2. Fetch Issues from the last 7 days
+     const [issuedResults] = await db.query(`
+       SELECT DATE_FORMAT(issue_date, '%Y-%m-%d') as dateStr, COUNT(*) as count
+       FROM issued_books
+       WHERE issue_date >= DATE(NOW() - INTERVAL 6 DAY)
+       GROUP BY dateStr
+     `);
+
+     // 3. Fetch Returns from the last 7 days
+     const [returnedResults] = await db.query(`
+       SELECT DATE_FORMAT(return_date, '%Y-%m-%d') as dateStr, COUNT(*) as count
+       FROM issued_books
+       WHERE return_date IS NOT NULL AND return_date >= DATE(NOW() - INTERVAL 6 DAY)
+       GROUP BY dateStr
+     `);
+
+     // 4. Map the DB results into our arrays
+     issuedResults.forEach(row => {
+       const idx = dates.indexOf(row.dateStr);
+       if (idx !== -1) issuedData[idx] = row.count;
+     });
+
+     returnedResults.forEach(row => {
+       const idx = dates.indexOf(row.dateStr);
+       if (idx !== -1) returnedData[idx] = row.count;
+     });
+
+     // 5. Send to frontend
      return res.json({
-       labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+       labels: labels,
        datasets: [
-         { label: 'Books Issued', data: [12, 19, 3, 5, 2, 3, 10] },
-         { label: 'Books Returned', data: [5, 12, 1, 2, 6, 4, 8] }
+         { label: 'Books Issued', data: issuedData },
+         { label: 'Books Returned', data: returnedData }
        ]
      });
    } catch (error) {
-     return res.status(500).json({ message: 'Server error' });
+     console.error(`[CHART ERROR]:`, error);
+     return res.status(500).json({ message: 'Server error: ' + error.message });
    }
 };

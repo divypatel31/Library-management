@@ -40,9 +40,56 @@ exports.createUser = async (req, res) => {
 
 exports.deleteUser = async (req, res) => {
   try {
-    const [result] = await db.query('DELETE FROM users WHERE user_id = ?', [req.params.id]);
-    if (result.affectedRows === 0) return res.status(404).json({ message: 'User not found' });
-    res.json({ message: 'User removed' });
+    const userIdToDelete = req.params.id;
+    const requesterRole = req.user.role; // This will be 'Admin' or 'Librarian'
+
+    // 1. Find the user being deleted to check their role
+    const [targetUsers] = await db.query('SELECT role FROM users WHERE user_id = ?', [userIdToDelete]);
+
+    if (targetUsers.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const targetRole = targetUsers[0].role;
+
+    // 2. SMART SECURITY CHECK: 
+    // If the requester is a Librarian, block them from deleting Admins or other Librarians
+    if (requesterRole === 'Librarian' && (targetRole === 'Admin' || targetRole === 'Librarian')) {
+      return res.status(403).json({ message: 'Access Denied: Librarians can only delete Students and Professors.' });
+    }
+
+    // 3. If they pass the check (or if they are an Admin), delete the user
+    await db.query('DELETE FROM users WHERE user_id = ?', [userIdToDelete]);
+    res.json({ message: 'User deleted successfully' });
+    
+  } catch (error) {
+    console.error('Delete User Error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};  
+// Add this at the bottom of userController.js
+exports.getUserByIdentifier = async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    
+    // Search by email, roll_no, or exact user_id
+    const [users] = await db.query(
+      'SELECT user_id AS _id, full_name AS name, email, role, roll_no, department FROM users WHERE email = ? OR roll_no = ? OR user_id = ?',
+      [identifier, identifier, identifier]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User not found. Please check the Email or Roll No.' });
+    }
+
+    const user = users[0];
+    
+    // Optional: Prevent issuing books to Admins
+    if (user.role.toLowerCase() === 'admin') {
+      return res.status(403).json({ message: 'Cannot issue books to Admin accounts.' });
+    }
+
+    res.json({ ...user, role: user.role.charAt(0).toUpperCase() + user.role.slice(1) });
   } catch (error) {
     res.status(500).json({ message: 'Server error: ' + error.message });
   }

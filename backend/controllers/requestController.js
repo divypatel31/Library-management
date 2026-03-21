@@ -119,3 +119,40 @@ exports.processCustomRequest = async (req, res) => {
     if (action === 'approve') { await db.query('UPDATE custom_book_requests SET status = "approved" WHERE id = ?', [id]); return res.json({ message: 'Custom request approved' }); }
   } catch (error) { res.status(500).json({ message: 'Server error: ' + error.message }); }
 };
+
+// Fetch only the requests made by the logged-in user
+exports.getMyRequests = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user.user_id;
+
+    // Fixed: Changed r.request_id to r.id
+    const [myRequests] = await db.query(`
+      SELECT 
+        r.id AS _id,
+        r.status,
+        r.request_date,
+        b.title,
+        b.author
+      FROM book_requests r
+      JOIN books b ON r.book_id = b.book_id
+      WHERE r.user_id = ?
+      ORDER BY r.request_date DESC
+    `, [userId]);
+
+    // Format the requests for the frontend
+    const formattedRequests = myRequests.map(req => ({
+      _id: req._id,
+      status: req.status,
+      request_date: req.request_date,
+      title: req.title,
+      author: req.author,
+      reason: req.reason || 'Requested from library catalog' // Fallback text
+    }));
+
+    res.json(formattedRequests);
+    
+  } catch (error) {
+    console.error('🔥 SQL ERROR IN MY REQUESTS:', error.message);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};

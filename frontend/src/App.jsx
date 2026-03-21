@@ -3,6 +3,7 @@ import Landing from './pages/public/Landing';
 import Login from './pages/public/Login';
 import DashboardLayout from './layouts/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
+import ForgotPassword from './pages/public/ForgotPassword';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -10,30 +11,34 @@ import AdminUserManagement from './pages/admin/UserManagement';
 
 // Librarian Pages
 import LibrarianDashboard from './pages/librarian/Dashboard';
+import BookRequests from './pages/librarian/BookRequests';
 
 // Student/Professor Pages
 import StudentDashboard from './pages/student/Dashboard';
 import ProfessorDashboard from './pages/professor/Dashboard';
+
+// Shared Pages
 import BookBrowser from './pages/shared/BookBrowser';
 import PlaceholderPage from './pages/shared/PlaceholderPage';
 import IssuedBooks from './pages/shared/IssuedBooks';
 import Fines from './pages/shared/Fines';
 import Reports from './pages/admin/Reports';
 import Announcements from './pages/shared/Announcements';
-import BookRequests from './pages/librarian/BookRequests';
 import Notifications from './pages/shared/Notifications';
+// NEW IMPORT ADDED HERE:
+import RequestHistory from './pages/shared/RequestHistory'; 
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Admin Module */}
       <Route path="/admin" element={<ProtectedRoute allowedRoles={['Admin']}><DashboardLayout /></ProtectedRoute>}>
          <Route index element={<AdminDashboard />} />
          <Route path="users" element={<AdminUserManagement />} />
-         {/* Using BookBrowser for Book Management temporarily to show feature completeness */}
          <Route path="books" element={<BookBrowser />} />
          <Route path="history" element={<IssuedBooks />} />
          <Route path="reports" element={<Reports />} />
@@ -52,6 +57,8 @@ function App() {
          <Route path="fines" element={<Fines />} />
          <Route path="announcements" element={<Announcements />} />
          <Route path="requests" element={<BookRequests />} />
+         {/* FIXED PATH */}
+         <Route path="my-requests" element={<RequestHistory />} /> 
          <Route path="*" element={<PlaceholderPage />} />
       </Route>
 
@@ -62,6 +69,8 @@ function App() {
          <Route path="issued" element={<IssuedBooks />} />
          <Route path="fines" element={<Fines />} />
          <Route path="notifications" element={<Notifications />} />
+         {/* ADDED TO STUDENT */}
+         <Route path="my-requests" element={<RequestHistory />} />
          <Route path="*" element={<PlaceholderPage />} />
       </Route>
 
@@ -72,6 +81,8 @@ function App() {
          <Route path="issued" element={<IssuedBooks />} />
          <Route path="fines" element={<Fines />} />
          <Route path="notifications" element={<Notifications />} />
+         {/* ADDED TO PROFESSOR */}
+         <Route path="my-requests" element={<RequestHistory />} />
          <Route path="*" element={<PlaceholderPage />} />
       </Route>
 

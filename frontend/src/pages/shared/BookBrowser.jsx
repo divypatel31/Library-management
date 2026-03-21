@@ -1,47 +1,37 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, BookMarked, Filter, ArrowRight, PlusCircle, Save } from 'lucide-react';
-import AnimatedCard from '../../components/AnimatedCard';
+import { Search, Plus, BookOpen, User, Tag, Hash, ArrowRightLeft, Save, Send, Trash2 } from 'lucide-react';
+import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import IssueBookModal from '../../components/IssueBookModal';
+import BookDetailsModal from '../../components/BookDetailsModal';
 import Modal from '../../components/Modal';
 import Input from '../../components/Input';
-import { useAuth } from '../../context/AuthContext';
-import api from '../../services/api';
 
 const BookBrowser = () => {
-  const [books, setBooks] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedBook, setSelectedBook] = useState(null);
-  
   const { user } = useAuth();
+  const [books, setBooks] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Permissions
+  const isStaff = user?.role === 'Admin' || user?.role === 'Librarian';
+  const isAdmin = user?.role === 'Admin';
+
+  // Modals
+  const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
+  const [selectedBookForIssue, setSelectedBookForIssue] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState(null);
+
+  // Forms
   const [isAddRoute, setIsAddRoute] = useState(false);
-  const [addForm, setAddForm] = useState({
-     title: '', author: '', isbn: '', category: '', quantity: ''
-  });
+  const [addForm, setAddForm] = useState({ title: '', author: '', isbn: '', category: '', quantity: '' });
+  
+  // Request Form State
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestForm, setRequestForm] = useState({ title: '', author: '', reason: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [isCustomRequestModalOpen, setIsCustomRequestModalOpen] = useState(false);
-  const [customRequestForm, setCustomRequestForm] = useState({ title: '', author: '', edition: '' });
-  const [isCustomSubmitting, setIsCustomSubmitting] = useState(false);
-
-  const handleCustomRequest = async (e) => {
-     e.preventDefault();
-     setIsCustomSubmitting(true);
-     try {
-        await api.post('/requests/custom', customRequestForm);
-        alert('Custom book request submitted successfully!');
-        setIsCustomRequestModalOpen(false);
-        setCustomRequestForm({ title: '', author: '', edition: '' });
-     } catch (error) {
-        alert(error.response?.data?.message || 'Failed to submit custom request');
-     } finally {
-        setIsCustomSubmitting(false);
-     }
-  };
-
-  useEffect(() => {
-    fetchBooks();
-  }, []);
 
   const fetchBooks = async () => {
     try {
@@ -49,267 +39,244 @@ const BookBrowser = () => {
       const res = await api.get('/books');
       setBooks(res.data);
     } catch (error) {
-      console.error("Failed to fetch catalog");
+      console.error('Failed to fetch books:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const filteredBooks = books.filter(b => 
-    b.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    b.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    b.category.toLowerCase().includes(searchTerm.toLowerCase())
+  const handleDeleteBook = async (bookId, title) => {
+    if (!window.confirm(`Are you sure you want to delete "${title}" completely from the catalog?`)) return;
+    
+    try {
+      await api.delete(`/books/${bookId}`);
+      fetchBooks(); // Instantly remove it from the screen
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to delete book. Make sure no copies are currently issued.');
+    }
+  };
+
+  useEffect(() => { fetchBooks(); }, []);
+
+  const filteredBooks = books.filter(book => 
+    book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    book.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleRequestBook = async (bookId) => {
-     try {
-       await api.post('/requests', { bookId });
-       // Optimistic update
-       alert(`Request submitted successfully!`);
-       setSelectedBook(null);
-     } catch (error) {
-       alert(error.response?.data?.message || 'Failed to submit request');
-     }
-  };
+  const openIssueModal = (book) => { setSelectedBookForIssue(book); setIsIssueModalOpen(true); };
+  const openDetailsModal = (book) => { setSelectedBookForDetails(book); setIsDetailsModalOpen(true); };
 
   const handleAddBook = async (e) => {
-     e.preventDefault();
-     setIsSubmitting(true);
-     try {
-        const payload = {
-           ...addForm,
-           quantity: parseInt(addForm.quantity) || 1
-        };
-        const res = await api.post('/books', payload);
-        setBooks([res.data, ...books]);
-        setIsAddRoute(false);
-        setAddForm({ title: '', author: '', isbn: '', category: '', quantity: '' });
-     } catch (error) {
-        alert(error.response?.data?.message || 'Failed to add book');
-     } finally {
-        setIsSubmitting(false);
-     }
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+       const payload = { ...addForm, quantity: parseInt(addForm.quantity) || 1 };
+       await api.post('/books', payload);
+       fetchBooks(); 
+       setIsAddRoute(false);
+       setAddForm({ title: '', author: '', isbn: '', category: '', quantity: '' });
+    } catch (error) {
+       alert(error.response?.data?.message || 'Failed to add book');
+    } finally {
+       setIsSubmitting(false);
+    }
   };
 
-  const canAddBook = user?.role === 'Admin' || user?.role === 'Librarian';
+  // Handle Requesting a Book
+  const handleRequestBook = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+       await api.post('/requests/custom', requestForm);
+       alert('Book request submitted successfully!');
+       setIsRequestModalOpen(false);
+       setRequestForm({ title: '', author: '', reason: '' });
+    } catch (error) {
+       alert(error.response?.data?.message || 'Failed to submit request');
+    } finally {
+       setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-4 border-b border-slate-200">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-800 tracking-tight mb-2">
-            Library Catalog
-          </h1>
-          <p className="text-slate-500 font-medium">Browse and search thousands of digital and physical resources.</p>
+          <h1 className="text-3xl font-display font-bold text-slate-800 tracking-tight">Library Catalog</h1>
+          <p className="text-slate-500 mt-1">Browse, search, and manage library resources.</p>
         </div>
-        {canAddBook && (
-           <button 
-             onClick={() => setIsAddRoute(true)}
-             className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-2 shadow-sm transition-all shadow-indigo-200 hover:-translate-y-0.5"
-           >
-              <PlusCircle size={20} />
-              Add New Book
-           </button>
-        )}
+        
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Request Book Button (Visible to everyone EXCEPT Admin) */}
+          {!isAdmin && (
+            <button 
+              onClick={() => setIsRequestModalOpen(true)}
+              className="py-2.5 px-4 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
+            >
+              <Send size={18} /> Request a Book
+            </button>
+          )}
+
+          {/* Add Book Button (Visible to Admin and Librarian) */}
+          {isStaff && (
+            <button 
+              onClick={() => setIsAddRoute(true)}
+              className="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
+            >
+              <Plus size={18} /> Add New Book
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex gap-4 mb-8">
-         <div className="relative flex-1 group">
-            <div className="relative flex items-center bg-white shadow-sm border border-slate-200 rounded-2xl overflow-hidden focus-within:border-indigo-500 focus-within:shadow-md transition-all">
-               <div className="pl-4 pr-2 text-slate-400">
-                  <Search size={20} />
-               </div>
-               <input 
-                 type="text" 
-                 placeholder="Search by title, author, or category..."
-                 className="flex-1 py-3.5 bg-transparent outline-none text-slate-800 placeholder:text-slate-400 font-medium"
-                 value={searchTerm}
-                 onChange={(e) => setSearchTerm(e.target.value)}
-               />
-            </div>
-         </div>
-         <button className="px-6 py-3.5 rounded-2xl bg-white shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-all font-semibold">
-            <Filter size={20} />
-            <span className="hidden sm:inline">Filters</span>
-         </button>
+      <div className="relative max-w-xl">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <Search size={18} className="text-slate-400" />
+        </div>
+        <input
+          type="text"
+          placeholder="Search by title, author, or category..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+        />
       </div>
 
-      {/* Book Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-           {[...Array(10)].map((_, i) => (
-             <div key={i} className="h-72 rounded-2xl bg-slate-100 animate-pulse border border-slate-200"></div>
-           ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[...Array(8)].map((_, i) => <div key={i} className="h-64 bg-slate-100 animate-pulse rounded-2xl border border-slate-200"></div>)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           <AnimatePresence>
-            {filteredBooks.map((book, i) => (
-               <motion.div
-                 initial={{ opacity: 0, scale: 0.95 }}
-                 animate={{ opacity: 1, scale: 1 }}
-                 exit={{ opacity: 0, scale: 0.95 }}
-                 transition={{ duration: 0.2, delay: i * 0.05 }}
-                 key={book._id}
-                 onClick={() => setSelectedBook(book)}
-                 className="group cursor-pointer perspective-[1000px]"
-               >
-                 <div className="relative h-64 rounded-2xl overflow-hidden mb-4 border border-slate-200 shadow-sm group-hover:shadow-[0_10px_30px_rgba(79,70,229,0.15)] group-hover:border-indigo-200 transition-all transform group-hover:-translate-y-1 preserve-3d bg-white">
-                    <img 
-                       src={book.coverImage} 
-                       alt={book.title}
-                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
-                    
-                    <div className="absolute bottom-4 left-4 right-4 relative z-10">
-                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full mb-2 inline-block shadow-sm backdrop-blur-md
-                          ${book.available > 0 
-                             ? 'bg-white/90 text-emerald-700' 
-                             : 'bg-white/90 text-rose-700'}
-                       `}>
-                          {book.available > 0 ? `${book.available} Available` : 'Out of Stock'}
-                       </span>
-                    </div>
-                 </div>
-                 
-                 <div className="px-1">
-                   <h3 className="text-slate-800 font-bold line-clamp-1 group-hover:text-indigo-600 transition-colors">{book.title}</h3>
-                   <p className="text-slate-500 font-medium text-sm">{book.author}</p>
-                 </div>
-               </motion.div>
+            {filteredBooks.map((book) => (
+              <motion.div key={book._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                <div className="h-40 bg-slate-100 flex items-center justify-center shrink-0 relative overflow-hidden group">
+                   <img 
+                     src={book.isbn ? `https://covers.openlibrary.org/b/isbn/${book.isbn}-L.jpg` : 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300'} 
+                     alt={book.title} 
+                     className="w-full h-full object-cover"
+                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300'; }}
+                   />
+                   
+                   {/* Floating Delete Button for Staff */}
+                   {isStaff && (
+                     <button 
+                       onClick={(e) => { e.stopPropagation(); handleDeleteBook(book._id, book.title); }}
+                       className="absolute top-2 right-2 p-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                       title="Delete Book"
+                     >
+                       <Trash2 size={16} />
+                     </button>
+                   )}
+
+                   <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button onClick={() => openDetailsModal(book)} className="px-4 py-2 bg-white/90 text-slate-900 rounded-lg font-medium text-sm hover:bg-white transition-colors">
+                        View Details
+                      </button>
+                   </div>
+                </div>
+
+                <div className="p-5 flex-1 flex flex-col">
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <h3 className="font-semibold text-slate-800 line-clamp-2 leading-tight">{book.title}</h3>
+                    <span className={`px-2 py-1 rounded-md text-xs font-semibold shrink-0 ${book.available > 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                      {book.available} Left
+                    </span>
+                  </div>
+                  <div className="space-y-2 text-sm text-slate-500 mb-6 flex-1">
+                    <p className="flex items-center gap-2"><User size={14} /> {book.author}</p>
+                    <p className="flex items-center gap-2"><Tag size={14} /> {book.category}</p>
+                    <p className="flex items-center gap-2"><Hash size={14} /> {book.isbn}</p>
+                  </div>
+
+                  {isStaff && book.available > 0 ? (
+                    <button onClick={() => openIssueModal(book)} className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm">
+                      <ArrowRightLeft size={16} /> Issue Book
+                    </button>
+                  ) : isStaff && book.available === 0 ? (
+                    <button disabled className="w-full py-2.5 bg-slate-100 text-slate-400 rounded-xl font-medium cursor-not-allowed text-sm flex items-center justify-center gap-2">
+                      <BookOpen size={16} /> Out of Stock
+                    </button>
+                  ) : null}
+                </div>
+              </motion.div>
             ))}
           </AnimatePresence>
           
           {filteredBooks.length === 0 && (
-             <div className="col-span-full py-20 text-center text-slate-500 font-medium border border-dashed border-slate-300 bg-slate-50/50 rounded-2xl flex flex-col items-center">
-               <p className="mb-4">No resources found matching your search.</p>
-               {user?.role?.toLowerCase() !== 'admin' && (
-                  <button 
-                     onClick={() => setIsCustomRequestModalOpen(true)}
-                     className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all shadow-sm inline-block"
-                  >
-                     Request a Custom Book
-                  </button>
-               )}
-             </div>
+            <div className="col-span-full py-12 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl border-dashed">
+              No books found matching your search.
+            </div>
           )}
         </div>
       )}
 
-      {/* Custom Book Request Banner */}
-      {!isLoading && filteredBooks.length > 0 && user?.role?.toLowerCase() !== 'admin' && (
-         <div className="mt-8 p-8 rounded-2xl bg-indigo-50 border border-indigo-100 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div>
-               <h3 className="text-xl font-bold text-indigo-900 mb-2">Can't find what you're looking for?</h3>
-               <p className="text-indigo-700">Request a custom book and our library staff will review it for acquisition.</p>
-            </div>
-            <button 
-               onClick={() => setIsCustomRequestModalOpen(true)}
-               className="shrink-0 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-sm"
-            >
-               Request Custom Book
-            </button>
-         </div>
-      )}
+      {/* Existing Modals */}
+      <IssueBookModal isOpen={isIssueModalOpen} onClose={() => setIsIssueModalOpen(false)} book={selectedBookForIssue} onSuccess={fetchBooks} />
+      
+      {/* UPDATE: Passed fetchBooks so modal qty edits instantly update the main view */}
+      <BookDetailsModal 
+        isOpen={isDetailsModalOpen} 
+        onClose={() => setIsDetailsModalOpen(false)} 
+        book={selectedBookForDetails} 
+        onUpdate={fetchBooks} 
+      />
 
-      {/* Book Details Modal */}
-      <Modal isOpen={!!selectedBook} onClose={() => setSelectedBook(null)} title={selectedBook?.title}>
-         {selectedBook && (
-            <div className="flex flex-col md:flex-row gap-6">
-               <div className="w-full md:w-1/3 shrink-0">
-                  <div className="aspect-[2/3] rounded-xl overflow-hidden border border-slate-200 shadow-md">
-                     <img src={selectedBook.coverImage} alt={selectedBook.title} className="w-full h-full object-cover" />
-                  </div>
-               </div>
-               <div className="flex-1 flex flex-col">
-                  <div className="mb-6">
-                     <h3 className="text-2xl font-bold text-slate-800 mb-1">{selectedBook.title}</h3>
-                     <p className="text-indigo-600 font-medium mb-4">{selectedBook.author}</p>
-                     
-                     <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-3 mb-6 gap-4">
-                        <div className="flex-1 text-center border-r border-slate-200">
-                           <div className="text-slate-400 font-semibold text-xs mb-1">Category</div>
-                           <div className="text-slate-700 text-sm font-bold">{selectedBook.category}</div>
-                        </div>
-                        <div className="flex-1 text-center">
-                           <div className="text-slate-400 font-semibold text-xs mb-1">Availability</div>
-                           <div className={`text-sm font-bold ${selectedBook.available > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {selectedBook.available} / {selectedBook.quantity}
-                           </div>
-                        </div>
-                     </div>
+      {/* Add New Book Modal */}
+      <Modal isOpen={isAddRoute} onClose={() => setIsAddRoute(false)} title="Add New Resource">
+        <form onSubmit={handleAddBook} className="space-y-5 px-1">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <Input label="Title" required value={addForm.title} onChange={e => setAddForm({...addForm, title: e.target.value})} placeholder="e.g. Design Patterns" />
+              <Input label="Author" required value={addForm.author} onChange={e => setAddForm({...addForm, author: e.target.value})} placeholder="e.g. Gang of Four" />
+           </div>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <Input label="ISBN" required value={addForm.isbn} onChange={e => setAddForm({...addForm, isbn: e.target.value})} placeholder="Unique identifier" />
+              <Input label="Category" required value={addForm.category} onChange={e => setAddForm({...addForm, category: e.target.value})} placeholder="e.g. Computer Science" />
+              <Input label="Quantity" required type="number" min="1" value={addForm.quantity} onChange={e => setAddForm({...addForm, quantity: e.target.value})} placeholder="e.g. 5" />
+           </div>
+           <div className="pt-4 flex justify-end">
+              <button disabled={isSubmitting} type="submit" className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50">
+                 {isSubmitting ? 'Saving...' : <><Save size={18} /> Add to Catalog</>}
+              </button>
+           </div>
+        </form>
+      </Modal>
 
-                     <p className="text-slate-600 text-sm leading-relaxed mb-6 font-medium">
-                        An excellent piece of literature covering fundamental concepts in <span className="text-slate-800 font-bold">{selectedBook.category}</span>. This resource is highly recommended for relevant coursework.
-                     </p>
-                  </div>
-                  
-                  <div className="mt-auto">
-                     {selectedBook.available > 0 ? (
-                        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-3 shadow-sm">
-                           <BookMarked className="text-emerald-500 shrink-0 mt-0.5" size={20} />
-                           <div>
-                              <div className="font-bold text-emerald-800">Available to Issue</div>
-                              <div className="text-emerald-600 text-sm font-medium mt-1">Please visit the librarian desk to physically issue this book using your ID.</div>
-                           </div>
-                        </div>
-                     ) : (
-                        <motion.button 
-                           whileHover={{ y: -2 }}
-                           whileTap={{ scale: 0.98 }}
-                           onClick={() => handleRequestBook(selectedBook._id)}
-                           className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-                        >
-                           Request Unavailable Book
-                           <ArrowRight size={18} />
-                        </motion.button>
-                     )}
-                   </div>
-                </div>
-             </div>
-          )}
-       </Modal>
+      {/* Request Book Modal */}
+      <Modal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} title="Request a New Book">
+        <form onSubmit={handleRequestBook} className="space-y-5 px-1">
+           <div className="p-4 bg-sky-50 rounded-xl border border-sky-100 text-sm text-sky-700 mb-4">
+             Can't find a book in the catalog? Submit a request to the library administration to have it added!
+           </div>
+           <div className="grid grid-cols-1 gap-5">
+              <Input label="Book Title" required value={requestForm.title} onChange={e => setRequestForm({...requestForm, title: e.target.value})} placeholder="Title of the requested book" />
+              <Input label="Author" required value={requestForm.author} onChange={e => setRequestForm({...requestForm, author: e.target.value})} placeholder="Author's name" />
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reason for Request</label>
+                <textarea 
+                  required 
+                  value={requestForm.reason} 
+                  onChange={e => setRequestForm({...requestForm, reason: e.target.value})} 
+                  rows="3" 
+                  placeholder="Why do you need this book? (e.g., Required for CS-101 coursework)"
+                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                ></textarea>
+              </div>
+           </div>
+           
+           <div className="pt-4 flex justify-end">
+              <button disabled={isSubmitting} type="submit" className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50">
+                 {isSubmitting ? 'Submitting...' : <><Send size={18} /> Submit Request</>}
+              </button>
+           </div>
+        </form>
+      </Modal>
 
-       {/* Add Book Modal */}
-       <Modal isOpen={isAddRoute} onClose={() => setIsAddRoute(false)} title="Add New Resource">
-          <form onSubmit={handleAddBook} className="space-y-5 px-1">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Input label="Title" required value={addForm.title} onChange={e => setAddForm({...addForm, title: e.target.value})} placeholder="e.g. Design Patterns" />
-                <Input label="Author" required value={addForm.author} onChange={e => setAddForm({...addForm, author: e.target.value})} placeholder="e.g. Gang of Four" />
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <Input label="ISBN" required value={addForm.isbn} onChange={e => setAddForm({...addForm, isbn: e.target.value})} placeholder="Unique identifier" />
-                <Input label="Category" required value={addForm.category} onChange={e => setAddForm({...addForm, category: e.target.value})} placeholder="e.g. Computer Science" />
-                <Input label="Quantity" required type="number" min="1" value={addForm.quantity} onChange={e => setAddForm({...addForm, quantity: e.target.value})} placeholder="e.g. 5" />
-             </div>
-             <div className="pt-4 flex justify-end">
-                <button disabled={isSubmitting} type="submit" className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50">
-                   {isSubmitting ? 'Saving...' : <><Save size={18} /> Add to Catalog</>}
-                </button>
-             </div>
-          </form>
-       </Modal>
-
-       {/* Custom Book Request Modal */}
-       <Modal isOpen={isCustomRequestModalOpen} onClose={() => setIsCustomRequestModalOpen(false)} title="Request Custom Book">
-          <form onSubmit={handleCustomRequest} className="space-y-5 px-1">
-             <div className="space-y-4">
-                <Input label="Book Title" required value={customRequestForm.title} onChange={e => setCustomRequestForm({...customRequestForm, title: e.target.value})} placeholder="e.g. Introduction to Algorithms" />
-                <Input label="Author" required value={customRequestForm.author} onChange={e => setCustomRequestForm({...customRequestForm, author: e.target.value})} placeholder="e.g. Thomas H. Cormen" />
-                <Input label="Edition (Optional)" value={customRequestForm.edition} onChange={e => setCustomRequestForm({...customRequestForm, edition: e.target.value})} placeholder="e.g. 3rd Edition" />
-             </div>
-             <div className="pt-4 flex justify-end">
-                <button disabled={isCustomSubmitting} type="submit" className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50">
-                   {isCustomSubmitting ? 'Submitting...' : 'Submit Request'}
-                </button>
-             </div>
-          </form>
-       </Modal>
     </div>
   );
 };
 
 export default BookBrowser;
-

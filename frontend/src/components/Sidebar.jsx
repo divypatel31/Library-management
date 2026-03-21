@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Library,
   BookDown,
-  BookUp
+  BookUp,
+  Clock // NEW: Imported the Clock icon for the history tab
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -39,7 +40,7 @@ const Sidebar = () => {
         { path: '/admin/users', name: 'User Management', icon: Users },
         { path: '/admin/books', name: 'Book Management', icon: BookOpen },
         { path: '/admin/history', name: 'Issue History', icon: History },
-        { path: '/admin/requests', name: 'Book Requests', icon: BookUp },
+        { path: '/admin/requests', name: 'Manage Requests', icon: BookUp },
         { path: '/admin/fines', name: 'Fines', icon: AlertCircle },
         { path: '/admin/reports', name: 'Reports', icon: BookDown },
         { path: '/admin/announcements', name: 'Announcements', icon: Megaphone },
@@ -50,7 +51,8 @@ const Sidebar = () => {
        return [
         { path: '/librarian', name: 'Dashboard', icon: LayoutDashboard },
         { path: '/librarian/books', name: 'Book Management', icon: BookOpen },
-        { path: '/librarian/requests', name: 'Book Requests', icon: BookUp },
+        { path: '/librarian/requests', name: 'Manage Requests', icon: BookUp },
+        { path: '/librarian/my-requests', name: 'My Requests', icon: Clock }, // <-- NEW
         { path: '/librarian/issues', name: 'Issue / Return', icon: History },
         { path: '/librarian/users', name: 'User Management', icon: Users },
         { path: '/librarian/fines', name: 'Fines', icon: AlertCircle },
@@ -64,6 +66,7 @@ const Sidebar = () => {
         { path: `/${basePath}`, name: 'Dashboard', icon: LayoutDashboard },
         { path: `/${basePath}/browse`, name: 'Browse Books', icon: BookOpen },
         { path: `/${basePath}/issued`, name: 'My Books', icon: History },
+        { path: `/${basePath}/my-requests`, name: 'My Requests', icon: Clock }, // <-- NEW
         { path: `/${basePath}/fines`, name: 'Fines', icon: AlertCircle },
         { path: `/${basePath}/notifications`, name: 'Notifications', icon: Megaphone },
       ];

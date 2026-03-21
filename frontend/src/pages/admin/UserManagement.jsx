@@ -58,8 +58,13 @@ const UserManagement = () => {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post('/users', formData);
-      setUsers([...users, res.data]);
+      // 1. Create the user in the database
+      await api.post('/users', formData);
+      
+      // 2. THE FIX: Fetch the complete fresh list immediately
+      await fetchUsers();
+      
+      // 3. Close and reset the modal
       setIsModalOpen(false);
       setFormData({ name: '', email: '', password: '', role: 'Student', roll_no: '', department: '' });
     } catch (error) {

@@ -50,12 +50,41 @@ exports.updateBook = async (req, res) => {
   }
 };
 
+// Delete a book and its history safely
 exports.deleteBook = async (req, res) => {
+  const { id } = req.params;
+  
   try {
-    const [result] = await db.query('DELETE FROM books WHERE book_id = ?', [req.params.id]);
-    if (result.affectedRows === 0) return res.status(404).json({ message: 'Book not found' });
-    res.json({ message: 'Book removed' });
+    // 1. SAFETY CHECK: Is the book currently in someone's hands?
+    const [activeIssues] = await db.query(
+      'SELECT * FROM issued_books WHERE book_id = ? AND status = "issued"', 
+      [id]
+    );
+    
+    if (activeIssues.length > 0) {
+      return res.status(400).json({ 
+        message: 'Cannot delete book. There are copies currently issued to users. Please have them returned first.' 
+      });
+    }
+
+    // 2. CLEANUP: Delete child records to satisfy MySQL Foreign Key constraints
+    // Delete any pending or past requests for this book
+    await db.query('DELETE FROM book_requests WHERE book_id = ?', [id]);
+    
+    // Delete the borrowing history for this book
+    await db.query('DELETE FROM issued_books WHERE book_id = ?', [id]);
+
+    // 3. Finally, delete the book itself
+    const [result] = await db.query('DELETE FROM books WHERE book_id = ?', [id]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+
+    res.json({ message: 'Book and its history deleted successfully' });
+    
   } catch (error) {
+    console.error('Delete Book Error:', error);
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
-};  
+};

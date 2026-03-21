@@ -1,207 +1,98 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Megaphone, Send, CalendarIcon, PlusCircle } from 'lucide-react';
-import AnimatedCard from '../../components/AnimatedCard';
-import { useAuth } from '../../context/AuthContext';
+import { Megaphone, Calendar, Plus, User } from 'lucide-react';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import Modal from '../../components/Modal';
+import Input from '../../components/Input';
+import AnimatedCard from '../../components/AnimatedCard';
 
 const Announcements = () => {
   const { user } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Form State
-  const [title, setTitle] = useState('');
-  const [message, setMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [form, setForm] = useState({ title: '', message: '' });
 
-  useEffect(() => {
-    fetchAnnouncements();
-  }, []);
+  const isStaff = user?.role === 'Admin' || user?.role === 'Librarian';
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await api.get('/announcements');
-      setAnnouncements(response.data);
-    } catch (error) {
-      console.error("Failed to fetch announcements", error);
+      setIsLoading(true);
+      const res = await api.get('/announcements');
+      setAnnouncements(res.data);
+    } catch (err) {
+      console.error('Failed to fetch announcements:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!title.trim() || !message.trim()) return;
+  useEffect(() => { fetchAnnouncements(); }, []);
 
-    setIsSubmitting(true);
+  const handleCreate = async (e) => {
+    e.preventDefault();
     try {
-       const res = await api.post('/announcements', { title, message });
-       // Add to top of list
-       setAnnouncements([res.data, ...announcements]);
-       setTitle('');
-       setMessage('');
-       setIsFormVisible(false);
-    } catch (error) {
-       console.error("Failed to create announcement", error);
-    } finally {
-       setIsSubmitting(false);
+      await api.post('/announcements', form);
+      await fetchAnnouncements(); // Refresh live
+      setIsModalOpen(false);
+      setForm({ title: '', message: '' });
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to create announcement');
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
-  };
-
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-slate-200">
+    <div className="space-y-6">
+      <div className="flex justify-between items-end pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-4xl font-display font-bold text-slate-800 tracking-tight mb-2">
-            Announcements Central
-          </h1>
-          <p className="text-slate-500 font-medium max-w-2xl">
-            Create and manage system-wide announcements. Messages will be broadcasted to all corresponding user dashboards.
-          </p>
+          <h1 className="text-3xl font-display font-bold text-slate-800 tracking-tight">Announcements</h1>
+          <p className="text-slate-500 mt-1">Stay updated with library news and notices.</p>
         </div>
-        
-        <button 
-          onClick={() => setIsFormVisible(!isFormVisible)}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-sm transition-all duration-200 ${
-             isFormVisible 
-               ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-               : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 hover:-translate-y-0.5'
-          }`}
-        >
-          {isFormVisible ? 'Cancel' : <><PlusCircle size={18} /> New Announcement</>}
-        </button>
+        {isStaff && (
+          <button onClick={() => setIsModalOpen(true)} className="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium flex items-center gap-2">
+            <Plus size={18} /> Post Update
+          </button>
+        )}
       </div>
 
-      {/* Creation Form */}
-      {isFormVisible && (
-         <AnimatedCard className="p-1 border-indigo-100 bg-gradient-to-br from-indigo-50 to-white shadow-md">
-           <form onSubmit={handleSubmit} className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                 <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-xl">
-                    <Megaphone size={20} />
-                 </div>
-                 <h2 className="text-xl font-display font-semibold text-slate-800">Broadcast Message</h2>
+      {isLoading ? (
+        <div className="text-slate-500 animate-pulse">Loading announcements...</div>
+      ) : announcements.length === 0 ? (
+        <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-500">
+          <Megaphone size={40} className="mx-auto mb-4 opacity-50" />
+          <p>No announcements posted yet.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {announcements.map((ann) => (
+            <AnimatedCard key={ann._id} className="bg-white border-slate-200">
+              <div className="flex gap-4 items-start">
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hidden sm:block"><Megaphone size={24} /></div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">{ann.title}</h3>
+                  <p className="text-slate-600 leading-relaxed mb-4">{ann.message}</p>
+                  <div className="flex gap-4 text-xs font-semibold text-slate-400">
+                    <span className="flex items-center gap-1"><Calendar size={14} /> {new Date(ann.createdAt).toLocaleDateString()}</span>
+                    <span className="flex items-center gap-1"><User size={14} /> {ann.authorName} ({ann.authorRole})</span>
+                  </div>
+                </div>
               </div>
-              
-              <div className="space-y-4">
-                 <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Title</label>
-                    <input 
-                       type="text" 
-                       value={title}
-                       onChange={(e) => setTitle(e.target.value)}
-                       placeholder="e.g., Library closed this Friday for maintenance"
-                       className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium placeholder:text-slate-400 placeholder:font-normal"
-                       maxLength={100}
-                       required
-                    />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Message</label>
-                    <textarea 
-                       value={message}
-                       onChange={(e) => setMessage(e.target.value)}
-                       placeholder="Write the detailed announcement here..."
-                       rows={4}
-                       className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium placeholder:text-slate-400 placeholder:font-normal resize-y"
-                       required
-                    ></textarea>
-                 </div>
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                 <button 
-                    type="submit" 
-                    disabled={isSubmitting || !title || !message}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-semibold shadow-sm hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                    {isSubmitting ? 'Sending...' : <><Send size={16} /> Broadcast Now</>}
-                 </button>
-              </div>
-           </form>
-         </AnimatedCard>
+            </AnimatedCard>
+          ))}
+        </div>
       )}
 
-      {/* List of Announcements */}
-      <div>
-         <h3 className="text-xl font-display font-semibold text-slate-800 mb-6 flex items-center gap-2">
-            Recent Announcements
-         </h3>
-         
-         {isLoading ? (
-           <div className="space-y-4">
-             {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-32 rounded-2xl bg-slate-100 animate-pulse border border-slate-200"></div>
-             ))}
-           </div>
-         ) : announcements.length === 0 ? (
-           <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-[2rem]">
-              <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center text-slate-400 mb-4">
-                 <Megaphone size={24} />
-              </div>
-              <h3 className="text-lg font-display font-semibold text-slate-700">No Announcements Yet</h3>
-              <p className="text-slate-500 text-sm mt-1">Create one above to broadcast across the system.</p>
-           </div>
-         ) : (
-           <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
-             {announcements.map((announcement) => (
-               <AnimatedCard key={announcement._id} variants={itemVariants} className="p-6 border-slate-200 shadow-sm hover:border-indigo-200 transition-all flex flex-col md:flex-row gap-6">
-                  
-                  <div className="flex-1">
-                     <div className="flex items-center gap-3 mb-2">
-                        <span className={`text-xs px-2.5 py-1 rounded-md font-bold uppercase tracking-wide
-                           ${announcement.authorRole === 'Admin' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-sky-50 text-sky-700 border border-sky-100'}
-                        `}>
-                           {announcement.authorRole}
-                        </span>
-                        <h4 className="font-display font-bold text-lg text-slate-900 leading-tight">
-                           {announcement.title}
-                        </h4>
-                     </div>
-                     <p className="text-slate-600 leading-relaxed font-medium">
-                        {announcement.message}
-                     </p>
-                  </div>
-                  
-                  <div className="flex flex-col items-start md:items-end justify-between shrink-0 pl-0 md:pl-6 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0">
-                     <div className="text-sm font-semibold text-slate-800">
-                        {announcement.authorName}
-                     </div>
-                     <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium mt-1 md:mt-0">
-                        <CalendarIcon size={14} />
-                        {formatDate(announcement.createdAt)}
-                     </div>
-                  </div>
-
-               </AnimatedCard>
-             ))}
-           </motion.div>
-         )}
-      </div>
-
+      {/* Post Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Post Announcement">
+        <form onSubmit={handleCreate} className="space-y-4">
+          <Input label="Title" required value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="e.g. Library Closed on Friday" />
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Message</label>
+            <textarea required value={form.message} onChange={e => setForm({...form, message: e.target.value})} rows="4" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500"></textarea>
+          </div>
+          <button type="submit" className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700">Post Announcement</button>
+        </form>
+      </Modal>
     </div>
   );
 };

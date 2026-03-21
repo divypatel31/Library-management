@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import Input from '../../components/Input';
-import { Library, ArrowRight, Lock } from 'lucide-react';
+import { Library, ArrowRight, AlertCircle } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -28,7 +28,7 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
-      setError('Please fill in all fields');
+      setError('Please fill in all fields to continue.');
       return;
     }
 
@@ -40,7 +40,6 @@ const Login = () => {
     setIsLoading(false);
     
     if (res.success) {
-       // redirect based on role
        const roleMap = {
          admin: '/admin',
          librarian: '/librarian',
@@ -49,7 +48,7 @@ const Login = () => {
        };
        navigate(roleMap[res.role?.toLowerCase()] || '/');
     } else {
-       setError(res.message);
+       setError(res.message || 'Invalid email or password.');
     }
   };
 
@@ -70,61 +69,75 @@ const Login = () => {
         transition={{ duration: 0.4, type: 'spring' }}
         className="w-full max-w-md relative z-10"
       >
-        <div className="glass-panel rounded-[2rem] p-8 sm:p-10 relative overflow-hidden">
+        <div className="glass-panel rounded-[2rem] p-8 sm:p-10 relative overflow-hidden shadow-xl shadow-slate-200/50 bg-white border border-slate-100">
           
           <div className="flex flex-col items-center mb-8">
             <motion.div 
               whileHover={{ rotate: 180 }}
               transition={{ duration: 0.5 }}
-              className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-5 shrink-0"
+              className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-5 shrink-0 shadow-sm"
             >
               <Library className="text-indigo-600" size={32} strokeWidth={2.5} />
             </motion.div>
-            <h2 className="text-2xl font-display font-bold text-slate-800 tracking-tight mb-2">Welcome Back</h2>
+            <h2 className="text-2xl font-display font-bold text-slate-800 tracking-tight mb-2">WWelcome to Liborbit</h2>
             <p className="text-slate-500 text-center text-sm">
               Sign in to manage library resources securely.
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-4">
+            
+            {/* Proper UI Error Display */}
+            <AnimatePresence>
+              {error && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-rose-50 text-rose-600 p-3.5 rounded-xl border border-rose-100 flex items-start gap-3 text-sm font-medium mb-1">
+                    <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <Input
               id="email"
               label="Email Address"
               type="email"
-              placeholder="admin@autolib.ai"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              error={error && !email ? 'Required' : ''}
             />
             
-            <Input
-              id="password"
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              error={error && !password ? 'Required' : ''}
-            />
-
-            {error && email && password && (
-               <motion.div 
-                 initial={{ opacity: 0, height: 0 }}
-                 animate={{ opacity: 1, height: 'auto' }}
-                 className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-100 flex items-center gap-2"
-               >
-                 <Lock size={16} />
-                 {error}
-               </motion.div>
-            )}
+            <div>
+              <Input
+                id="password"
+                label="Password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              
+              {/* Forgot Password Link added here */}
+              <div className="flex justify-end mt-2">
+                <Link to="/forgot-password" className="text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
 
             <motion.button
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.98 }}
               disabled={isLoading}
               type="submit"
-              className={`w-full py-3.5 mt-2 rounded-xl flex items-center justify-center gap-2 text-white font-semibold transition-all shadow-md
-                 ${isLoading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg cursor-pointer'}
+              className={`w-full py-3.5 mt-4 rounded-xl flex items-center justify-center gap-2 text-white font-semibold transition-all shadow-md
+                 ${isLoading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 cursor-pointer'}
               `}
             >
               {isLoading ? (

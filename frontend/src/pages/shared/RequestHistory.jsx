@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, CheckCircle2, XCircle, Search, Book, Calendar } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, Search, Book, Calendar, FileText } from 'lucide-react';
 import api from '../../services/api';
 import AnimatedCard from '../../components/AnimatedCard';
 
@@ -13,7 +13,8 @@ const RequestHistory = () => {
     const fetchMyRequests = async () => {
       try {
         setIsLoading(true);
-        const res = await api.get('/requests/my-history');
+        // Ensure your backend has this route set up to fetch only the logged-in user's requests
+        const res = await api.get('/requests/my-history'); 
         setRequests(res.data);
       } catch (error) {
         console.error('Failed to fetch request history:', error);
@@ -28,20 +29,20 @@ const RequestHistory = () => {
     switch (status?.toLowerCase()) {
       case 'approved':
         return (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
-            <CheckCircle2 size={16} /> Approved
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm">
+            <CheckCircle2 size={14} /> Approved
           </div>
         );
       case 'rejected':
         return (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-rose-50 text-rose-700 border border-rose-200 w-fit">
-            <XCircle size={16} /> Rejected
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 shadow-sm">
+            <XCircle size={14} /> Rejected
           </div>
         );
       default: // Pending
         return (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-amber-50 text-amber-700 border border-amber-200 w-fit">
-            <Clock size={16} /> Pending Review
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-200 shadow-sm">
+            <Clock size={14} /> Pending
           </div>
         );
     }
@@ -77,8 +78,8 @@ const RequestHistory = () => {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
+          {[...Array(6)].map((_, i) => (
              <div key={i} className="h-48 rounded-2xl bg-slate-100 animate-pulse border border-slate-200"></div>
           ))}
         </div>
@@ -95,26 +96,30 @@ const RequestHistory = () => {
            </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
           {filteredRequests.map((req, i) => (
             <AnimatedCard key={req._id || i} className="bg-white border-slate-200 p-6 flex flex-col h-full hover:shadow-md transition-shadow">
               
-              <div className="flex justify-between items-start mb-4 gap-4">
-                <div>
-                  <h3 className="text-xl font-bold text-slate-800 leading-tight mb-1">{req.title}</h3>
-                  <p className="text-slate-500 font-medium">by {req.author}</p>
+              <div className="flex justify-between items-start mb-4 gap-4 border-b border-slate-100 pb-4">
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg text-slate-800 leading-tight mb-1">{req.title}</h3>
+                  <p className="text-sm font-medium text-slate-500">by {req.author}</p>
                 </div>
-                {getStatusDisplay(req.status)}
+                <div className="shrink-0">
+                  {getStatusDisplay(req.status)}
+                </div>
               </div>
 
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-4 flex-1">
-                <p className="text-sm text-slate-500 mb-1 font-medium">Reason for Request:</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <FileText size={12} /> Reason
+                </p>
                 <p className="text-slate-700 text-sm italic">"{req.reason}"</p>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mt-auto pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mt-auto pt-3 border-t border-slate-100">
                 <Calendar size={14} /> 
-                Requested on {new Date(req.created_at || req.request_date).toLocaleDateString(undefined, {
+                Requested on {new Date(req.created_at || req.request_date || req.createdAt).toLocaleDateString(undefined, {
                   year: 'numeric', month: 'long', day: 'numeric'
                 })}
               </div>

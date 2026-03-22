@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const { getUsers, createUser, deleteUser, getUserByIdentifier } = require('../controllers/userController');
+// 1. IMPORT updateUser here:
+const { getUsers, createUser, deleteUser, getUserByIdentifier, updateUser } = require('../controllers/userController');
 
 router.get('/', protect, authorize('Admin', 'Librarian'), getUsers);
 router.post('/', protect, authorize('Admin', 'Librarian'), createUser);
+
+// 2. ADD THIS NEW ROUTE FOR EDITING:
+router.put('/:id', protect, authorize('Admin', 'Librarian'), updateUser);
 
 // FIX: Added 'Librarian' to the authorized roles for deleting
 router.delete('/:id', protect, authorize('Admin', 'Librarian'), deleteUser);

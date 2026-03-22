@@ -94,3 +94,40 @@ exports.getUserByIdentifier = async (req, res) => {
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };
+
+// Bulletproof Update User Function
+exports.updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // We also accept 'name' just in case the frontend sends it instead of 'full_name'
+    const { full_name, name, email, role, department, roll_no } = req.body;
+
+    // 1. Check if user exists
+    const [user] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
+    if (user.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 2. THE FIX: Force the role to lowercase so MySQL accepts it!
+    const dbRole = role ? role.toLowerCase() : user[0].role;
+    const finalName = full_name || name || user[0].full_name;
+
+    // 3. Clean up data (Admins don't need roll numbers or departments)
+    const finalRollNo = dbRole === 'student' ? (roll_no || null) : null;
+    const finalDepartment = (dbRole === 'student' || dbRole === 'professor') ? (department || null) : null;
+
+    // 4. Update the record
+    await db.query(
+      `UPDATE users 
+       SET full_name = ?, email = ?, role = ?, department = ?, roll_no = ? 
+       WHERE user_id = ?`,
+      [finalName, email, dbRole, finalDepartment, finalRollNo, id]
+    );
+
+    res.json({ message: 'User updated successfully!' });
+  } catch (error) {
+    console.error('🔥 Update User Error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};

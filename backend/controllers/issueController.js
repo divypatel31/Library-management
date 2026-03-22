@@ -182,3 +182,32 @@ exports.returnBook = async (req, res) => {
     connection.release();
   }
 };
+
+// NEW: Delete an issue history record
+// NEW: Delete an issue history record
+exports.deleteIssueRecord = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Double-check that it is actually returned before deleting 
+    // FIX: Changed table name from 'issues' to 'issued_books'
+    const [issue] = await db.query('SELECT status FROM issued_books WHERE issue_id = ?', [id]);
+    
+    if (issue.length === 0) {
+      return res.status(404).json({ message: 'Record not found' });
+    }
+    
+    if (issue[0].status.toLowerCase() !== 'returned') {
+      return res.status(400).json({ message: 'Safety Lock: You can only delete records that have been returned.' });
+    }
+
+    // 2. Delete the record
+    // FIX: Changed table name from 'issues' to 'issued_books'
+    await db.query('DELETE FROM issued_books WHERE issue_id = ?', [id]);
+    res.json({ message: 'History record deleted successfully!' });
+    
+  } catch (error) {
+    console.error('🔥 Delete Issue Error:', error.message);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};

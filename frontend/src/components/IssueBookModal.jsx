@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, User, AlertCircle, CheckCircle2, BookOpen } from 'lucide-react';
+import { Search, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
 import api from '../services/api';
 import Modal from './Modal';
 import Input from './Input';
@@ -7,13 +7,15 @@ import Input from './Input';
 const IssueBookModal = ({ isOpen, onClose, book, onSuccess }) => {
   const [identifier, setIdentifier] = useState('');
   const [foundUser, setFoundUser] = useState(null);
-  const [durationDays, setDurationDays] = useState(7);
+  
+  // Default to 7, but this will instantly change when a user is found
+  const [durationDays, setDurationDays] = useState(7); 
   
   const [searchLoading, setSearchLoading] = useState(false);
   const [issueLoading, setIssueLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 1. Search for the User
+  // 1. Search for the User and FIX the duration
   const handleSearchUser = async (e) => {
     e.preventDefault();
     if (!identifier) return;
@@ -24,10 +26,18 @@ const IssueBookModal = ({ isOpen, onClose, book, onSuccess }) => {
 
     try {
       const res = await api.get(`/users/find/${identifier}`);
-      setFoundUser(res.data);
-      // Auto-set duration based on role
-      if (res.data.role.toLowerCase() === 'student') setDurationDays(30);
-      else if (res.data.role.toLowerCase() === 'professor') setDurationDays(60);
+      const user = res.data;
+      setFoundUser(user);
+      
+      // STRICT POLICY: Automatically lock in the exact days based on role
+      if (user.role.toLowerCase() === 'student') {
+        setDurationDays(30);
+      } else if (user.role.toLowerCase() === 'professor') {
+        setDurationDays(60);
+      } else {
+        setDurationDays(14); // Fallback for Staff/Admins
+      }
+      
     } catch (err) {
       setError(err.response?.data?.message || 'User not found.');
     } finally {
@@ -44,11 +54,11 @@ const IssueBookModal = ({ isOpen, onClose, book, onSuccess }) => {
 
     try {
       await api.post('/issues', {
-        bookId: book._id,
-        userId: foundUser._id,
+        bookId: book._id || book.book_id,
+        userId: foundUser._id || foundUser.user_id,
         durationDays
       });
-      onSuccess(); // Triggers a table refresh in the parent component
+      onSuccess(); 
       handleClose();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to issue book');
@@ -72,11 +82,9 @@ const IssueBookModal = ({ isOpen, onClose, book, onSuccess }) => {
         
         {/* Book Info Summary */}
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex gap-4 items-center">
-          
-          {/* UPDATED: Replaced the icon with the real book cover using Open Library API */}
           <div className="w-12 h-16 bg-slate-200 rounded-md overflow-hidden shrink-0 border border-slate-300 shadow-sm">
             <img 
-              src={book.isbn ? `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg` : 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=100'} 
+              src={book.isbn ? `https://covers.openlibrary.org/b/isbn/${book.isbn.replace(/[- ]/g, '')}-M.jpg?default=false` : 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=100'} 
               alt={book.title} 
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -85,7 +93,6 @@ const IssueBookModal = ({ isOpen, onClose, book, onSuccess }) => {
               }}
             />
           </div>
-
           <div>
             <h4 className="font-semibold text-slate-800 leading-tight">{book.title}</h4>
             <p className="text-sm text-slate-500 mt-0.5">By {book.author}</p>
@@ -117,7 +124,7 @@ const IssueBookModal = ({ isOpen, onClose, book, onSuccess }) => {
           </button>
         </form>
 
-        {/* Step 2: Auto-filled Details (Only shows if user is found) */}
+        {/* Step 2: Auto-filled Details */}
         {foundUser && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
             <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4">
@@ -127,40 +134,39 @@ const IssueBookModal = ({ isOpen, onClose, book, onSuccess }) => {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-slate-500 mb-1">Full Name</p>
-                  <p className="font-medium text-slate-800">{foundUser.name}</p>
+                  <p className="font-medium text-slate-800">{foundUser.name || foundUser.full_name}</p>
                 </div>
                 <div>
                   <p className="text-slate-500 mb-1">Role</p>
                   <p className="font-medium text-slate-800">{foundUser.role}</p>
                 </div>
-                {(foundUser.department || foundUser.rollNo) && (
-                  <>
-                    <div>
-                      <p className="text-slate-500 mb-1">Department</p>
-                      <p className="font-medium text-slate-800">{foundUser.department || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 mb-1">Roll No</p>
-                      <p className="font-medium text-slate-800">{foundUser.rollNo || 'N/A'}</p>
-                    </div>
-                  </>
-                )}
               </div>
             </div>
 
-            <Input 
-              label="Loan Duration (Days)" 
-              type="number" 
-              value={durationDays} 
-              onChange={(e) => setDurationDays(e.target.value)} 
-            />
+            {/* FIXED DURATION DISPLAY */}
+            <div className="relative">
+              <div className="absolute top-9 right-4 text-slate-400">
+                <Lock size={16} />
+              </div>
+              <Input 
+                label="Loan Duration (Days) - Fixed Policy" 
+                type="number" 
+                value={durationDays} 
+                readOnly={true} // This prevents the user from typing in this box!
+                className="bg-slate-50 text-slate-600 font-bold cursor-not-allowed border-slate-200"
+                onChange={() => {}} // Empty function because it's read-only
+              />
+              <p className="text-xs text-slate-500 mt-1.5 ml-1">
+                Duration is automatically locked based on user role ({foundUser.role}).
+              </p>
+            </div>
 
             <button 
               onClick={handleIssueBook}
               disabled={issueLoading}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors disabled:opacity-70 shadow-sm"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors disabled:opacity-70 shadow-sm mt-2"
             >
-              {issueLoading ? 'Issuing Book...' : `Confirm Issue to ${foundUser.name.split(' ')[0]}`}
+              {issueLoading ? 'Issuing Book...' : `Confirm Issue to ${(foundUser.name || foundUser.full_name).split(' ')[0]}`}
             </button>
           </div>
         )}

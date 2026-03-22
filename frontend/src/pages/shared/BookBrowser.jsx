@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, BookOpen, User, Tag, Hash, ArrowRightLeft, Save, Send, Trash2 } from 'lucide-react';
+import { Search, Plus, BookOpen, User, Tag, Hash, ArrowRightLeft, Save, Send, Trash2, Download } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import IssueBookModal from '../../components/IssueBookModal';
 import BookDetailsModal from '../../components/BookDetailsModal';
 import Modal from '../../components/Modal';
 import Input from '../../components/Input';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable'; // <-- Cleaned up the imports for Vite
 
 const BookBrowser = () => {
   const { user } = useAuth();
@@ -77,6 +79,7 @@ const BookBrowser = () => {
        setIsAddRoute(false);
        setAddForm({ title: '', author: '', isbn: '', category: '', quantity: '' });
     } catch (error) {
+       // This will perfectly catch our new backend ISBN duplicate error!
        alert(error.response?.data?.message || 'Failed to add book');
     } finally {
        setIsSubmitting(false);
@@ -99,6 +102,66 @@ const BookBrowser = () => {
     }
   };
 
+  // Generate Professional PDF Report (Vite-Compatible)
+  const generateBookReportPDF = () => {
+    const doc = new jsPDF();
+
+    // Add Official Branding and Headers
+    doc.setFontSize(22);
+    doc.setTextColor(30, 41, 59); // Slate-800
+    doc.text("Liborbit Official", 14, 20);
+
+    doc.setFontSize(14);
+    doc.setTextColor(79, 70, 229); // Indigo-600
+    doc.text("Master Book Inventory Report", 14, 30);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139); // Slate-500
+    doc.text(`Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 14, 38);
+    doc.text(`Total Titles in Catalog: ${books.length}`, 14, 44);
+
+    // Define the Table Columns
+    const tableColumn = ["Title", "Author", "Category", "ISBN", "Stock (Avail/Total)"];
+    
+    // Map your Book Data into Rows
+    const tableRows = books.map(book => [
+      book.title,
+      book.author,
+      book.category || '-',
+      book.isbn || 'N/A',
+      `${book.available || 0} / ${book.quantity || 0}`
+    ]);
+
+    // THE FIX: autoTable is called directly with 'doc' passed as the first argument
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 50,
+      theme: 'grid',
+      headStyles: { 
+        fillColor: [79, 70, 229], // Liborbit Indigo
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252] // Very light slate
+      },
+      styles: { 
+        fontSize: 10, 
+        cellPadding: 4 
+      },
+      didDrawPage: function (data) {
+        let str = 'Page ' + doc.internal.getNumberOfPages();
+        doc.setFontSize(10);
+        let pageSize = doc.internal.pageSize;
+        let pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
+        doc.text(str, data.settings.margin.left, pageHeight - 10);
+      }
+    });
+
+    doc.save(`Liborbit_Book_Inventory_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
@@ -118,14 +181,22 @@ const BookBrowser = () => {
             </button>
           )}
 
-          {/* Add Book Button (Visible to Admin and Librarian) */}
+          {/* PDF Export and Add Book Buttons (Visible to Admin and Librarian) */}
           {isStaff && (
-            <button 
-              onClick={() => setIsAddRoute(true)}
-              className="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
-            >
-              <Plus size={18} /> Add New Book
-            </button>
+            <>
+              <button 
+                onClick={generateBookReportPDF}
+                className="py-2.5 px-4 bg-white border border-slate-300 text-slate-700 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 rounded-xl font-medium transition-all shadow-sm flex items-center gap-2"
+              >
+                <Download size={18} /> Export PDF
+              </button>
+              <button 
+                onClick={() => setIsAddRoute(true)}
+                className="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
+              >
+                <Plus size={18} /> Add New Book
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -248,7 +319,7 @@ const BookBrowser = () => {
       <Modal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} title="Request a New Book">
         <form onSubmit={handleRequestBook} className="space-y-5 px-1">
            <div className="p-4 bg-sky-50 rounded-xl border border-sky-100 text-sm text-sky-700 mb-4">
-             Can't find a book in the catalog? Submit a request to the library administration to have it added!
+              Can't find a book in the catalog? Submit a request to the library administration to have it added!
            </div>
            <div className="grid grid-cols-1 gap-5">
               <Input label="Book Title" required value={requestForm.title} onChange={e => setRequestForm({...requestForm, title: e.target.value})} placeholder="Title of the requested book" />

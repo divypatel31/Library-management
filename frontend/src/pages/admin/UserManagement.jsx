@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { UserPlus, Trash2, Search, ShieldCheck } from 'lucide-react';
+import { UserPlus, Trash2, Search, ShieldCheck, Edit2 } from 'lucide-react';
 import AnimatedCard from '../../components/AnimatedCard';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 import Input from '../../components/Input';
+import EditUserModal from '../../components/EditUserModal';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -16,7 +17,12 @@ const UserManagement = () => {
 
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  
   const [isLoading, setIsLoading] = useState(true);
   
   const [formData, setFormData] = useState({
@@ -55,6 +61,11 @@ const UserManagement = () => {
      }
   };
 
+  const handleEditClick = (userToEdit) => {
+    setSelectedUser(userToEdit);
+    setEditModalOpen(true);
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
@@ -73,11 +84,17 @@ const UserManagement = () => {
     }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // UPDATE: Now correctly filters by Department and Roll No as well!
+  const filteredUsers = users.filter(u => {
+    const search = searchTerm.toLowerCase();
+    return (
+      u.name?.toLowerCase().includes(search) || 
+      u.email?.toLowerCase().includes(search) ||
+      u.role?.toLowerCase().includes(search) ||
+      u.department?.toLowerCase().includes(search) ||
+      u.roll_no?.toLowerCase().includes(search)
+    );
+  });
 
   const columns = [
     { header: 'Name', accessor: 'name', render: (row) => (
@@ -104,6 +121,13 @@ const UserManagement = () => {
     { header: 'Joined', accessor: 'createdAt', render: (row) => <span className="text-slate-500">{new Date(row.createdAt).toLocaleDateString()}</span> },
     { header: 'Actions', accessor: '_id', render: (row) => (
        <div className="flex items-center gap-2">
+          <button 
+             onClick={() => handleEditClick(row)}
+             className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white rounded-lg transition-colors border border-indigo-100"
+             title="Edit User"
+          >
+             <Edit2 size={16} />
+          </button>
           <button 
              onClick={() => handleDelete(row._id)}
              className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white rounded-lg transition-colors border border-rose-100"
@@ -141,7 +165,7 @@ const UserManagement = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                   type="text" 
-                  placeholder="Search by name, email, or role..."
+                  placeholder="Search by name, dept, roll no..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 rounded-xl text-slate-800 shadow-sm outline-none transition-colors"
@@ -163,6 +187,7 @@ const UserManagement = () => {
          )}
       </AnimatedCard>
 
+      {/* Create User Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Account">
          <form onSubmit={handleCreateUser} className="space-y-4">
             <Input 
@@ -244,6 +269,14 @@ const UserManagement = () => {
             </div>
          </form>
       </Modal>
+
+      {/* Edit User Modal */}
+      <EditUserModal 
+         isOpen={editModalOpen}
+         onClose={() => setEditModalOpen(false)}
+         user={selectedUser}
+         onSuccess={fetchUsers}
+      />
 
     </div>
   );

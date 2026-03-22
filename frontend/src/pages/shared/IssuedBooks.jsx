@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Calendar, AlertCircle, Clock, CheckCircle2, Search, ArrowDownCircle } from 'lucide-react';
+import { BookOpen, Calendar, AlertCircle, Clock, CheckCircle2, Search, ArrowDownCircle, Trash2 } from 'lucide-react';
 import AnimatedCard from '../../components/AnimatedCard';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -46,6 +46,18 @@ const IssuedBooks = () => {
       alert(error.response?.data?.message || 'Failed to return book');
     } finally {
       setReturningId(null);
+    }
+  };
+
+  // NEW: Delete History Record Function
+  const handleDeleteRecord = async (issueId) => {
+    if (!window.confirm("Are you sure you want to permanently delete this history record?")) return;
+    
+    try {
+      await api.delete(`/issues/${issueId}`);
+      fetchIssues(); // Refresh the list instantly
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to delete record');
     }
   };
 
@@ -168,7 +180,6 @@ const IssuedBooks = () => {
               <div className="p-6 flex gap-6 items-start border-b border-slate-100">
                  <div className="w-24 h-36 shrink-0 rounded-xl overflow-hidden border border-slate-200 shadow-sm relative group bg-slate-100">
                     
-                    {/* NEW: Smart Image Logic fetching from Open Library API */}
                     <img 
                       src={issue.book?.isbn ? `https://covers.openlibrary.org/b/isbn/${issue.book.isbn.replace(/[- ]/g, '')}-M.jpg?default=false` : 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300'} 
                       alt={issue.book?.title || 'Book Cover'} 
@@ -255,6 +266,7 @@ const IssuedBooks = () => {
                        </div>
                     )}
 
+                    {/* Mark as Returned Button (Shows when Issued) */}
                     {isStaff && issue.status.toLowerCase() === 'issued' && (
                        <button
                          onClick={() => handleReturnBook(issue._id)}
@@ -266,6 +278,17 @@ const IssuedBooks = () => {
                          ) : (
                            <><ArrowDownCircle size={16} /> Mark as Returned</>
                          )}
+                       </button>
+                    )}
+
+                    {/* Delete Record Button (Shows when Returned) */}
+                    {isStaff && issue.status.toLowerCase() === 'returned' && (
+                       <button
+                         onClick={() => handleDeleteRecord(issue._id || issue.issue_id)}
+                         className="w-full py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm border border-rose-100 shadow-sm"
+                         title="Permanently Delete Record"
+                       >
+                         <Trash2 size={16} /> Delete Record
                        </button>
                     )}
                  </div>

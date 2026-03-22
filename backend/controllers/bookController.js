@@ -11,16 +11,39 @@ exports.getBooks = async (req, res) => {
   }
 };
 
+// Bulletproof Add Book Function
 exports.createBook = async (req, res) => {
   try {
     const { title, author, isbn, category, quantity } = req.body;
+
+    // 1. SMART CHECK: Does this ISBN already exist?
+    // We only check if an ISBN was actually provided
+    if (isbn && isbn.trim() !== '') {
+      const [existingBook] = await db.query('SELECT title FROM books WHERE isbn = ?', [isbn]);
+      
+      // If the array has anything in it, the book exists!
+      if (existingBook.length > 0) {
+        return res.status(400).json({ 
+          message: `A book with this ISBN already exists ("${existingBook[0].title}"). Please update its quantity instead of adding a new entry.` 
+        });
+      }
+    }
+
+    // 2. If it doesn't exist, proceed with adding it
+    // Note: The 'available' copies should equal the total 'quantity' when first added
     const [result] = await db.query(
-      'INSERT INTO books (title, author, isbn, category, quantity, available_quantity) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, author, isbn, category, quantity, quantity]
+      'INSERT INTO books (title, author, isbn, category, quantity, available) VALUES (?, ?, ?, ?, ?, ?)',
+      [title, author, isbn, category, quantity, quantity] 
     );
-    res.status(201).json({ _id: result.insertId, title });
+
+    res.status(201).json({ 
+      message: 'Book added successfully!', 
+      bookId: result.insertId 
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('🔥 Add Book Error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };
 

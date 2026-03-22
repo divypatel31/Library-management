@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Printer, TrendingUp, Users, BookOpen, AlertCircle, IndianRupee, History } from 'lucide-react';
+import { Download, TrendingUp, Users, BookOpen, IndianRupee, History, Calendar } from 'lucide-react';
 import AnimatedCard from '../../components/AnimatedCard';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -35,60 +37,32 @@ ChartJS.register(
 const Reports = () => {
   const { user } = useAuth();
   
-  const [data, setData] = useState({
-     stats: { totalUsers: 0, totalBooks: 0, totalIssued: 0, pendingFinesCount: 0 },
-     usersRoleDist: [0, 0, 0], // Admin, Librarian, Student/Professor
-     booksCatDist: { labels: [], data: [] },
-     finesCollected: 0,
-     finesPending: 0
+  // State for raw un-filtered data
+  const [rawData, setRawData] = useState({
+    users: [], books: [], issues: [], defaultStats: null
   });
-
+  
+  // State for the Date Filter
+  const [dates, setDates] = useState({ startDate: '', endDate: '' });
   const [isLoading, setIsLoading] = useState(true);
 
+  // 1. Fetch ALL data on mount
   useEffect(() => {
     const fetchAllData = async () => {
       try {
-        // 1. Fetch High Level Stats
-        const statsRes = await api.get('/dashboard/stats');
-        
-        // 2. Fetch Users to get Role Distribution
-        const usersRes = await api.get('/users');
-        const roles = usersRes.data.reduce((acc, curr) => {
-           acc[curr.role] = (acc[curr.role] || 0) + 1;
-           return acc;
-        }, {});
-        
-        // 3. Fetch Books to get Category Distribution
-        const booksRes = await api.get('/books');
-        const categories = booksRes.data.reduce((acc, curr) => {
-           const cat = curr.category || 'Uncategorized';
-           acc[cat] = (acc[cat] || 0) + 1;
-           return acc;
-        }, {});
-        
-        // 4. Fetch Issues to get fines distribution
-        const issuesRes = await api.get('/issues');
-        let pending = 0;
-        let collected = 0; // Currently mock collected as issues Res only holds active fineAmounts
-        keysAndPendingAmount(issuesRes.data, pending);
+        const [statsRes, usersRes, booksRes, issuesRes] = await Promise.all([
+           api.get('/dashboard/stats'),
+           api.get('/users'),
+           api.get('/books'),
+           api.get('/issues')
+        ]);
 
-        const calculatedPending = issuesRes.data.reduce((sum, issue) => sum + Number(issue.fineAmount || 0), 0);
-
-        setData({
-           stats: statsRes.data,
-           usersRoleDist: [
-             (roles['Admin'] || 0) + (roles['Librarian'] || 0), // Staff
-             roles['Student'] || 0,
-             roles['Professor'] || 0
-           ],
-           booksCatDist: {
-             labels: Object.keys(categories),
-             data: Object.values(categories)
-           },
-           finesPending: calculatedPending,
-           finesCollected: Math.floor(calculatedPending * 1.5) // Mock collected historical data for visual representation
+        setRawData({
+           defaultStats: statsRes.data,
+           users: usersRes.data,
+           books: booksRes.data,
+           issues: issuesRes.data
         });
-
       } catch (error) {
         console.error("Failed to fetch report data", error);
       } finally {
@@ -98,196 +72,304 @@ const Reports = () => {
     fetchAllData();
   }, []);
 
-  // Helper func workaround
-  function keysAndPendingAmount(data, pendingVar) {}
+  // 2. Automatically recalculate ALL stats when dates change
+  const data = useMemo(() => {
+    if (!rawData.defaultStats) return null;
 
-  const handlePrint = () => {
-    window.print();
+    // Helper function to check if a record falls within the chosen dates
+    const isWithinRange = (item) => {
+      if (!dates.startDate && !dates.endDate) return true;
+      const dateStr = item.createdAt || item.created_at || item.issue_date || item.issueDate;
+      if (!dateStr) return true; 
+
+      const itemDate = new Date(dateStr);
+      const start = dates.startDate ? new Date(dates.startDate) : new Date('2000-01-01');
+      const end = dates.endDate ? new Date(dates.endDate) : new Date('2100-01-01');
+      end.setHours(23, 59, 59, 999); // Include the whole end day
+
+      return itemDate >= start && itemDate <= end;
+    };
+
+    // Filter the raw data arrays
+    const filteredUsers = rawData.users.filter(isWithinRange);
+    const filteredBooks = rawData.books.filter(isWithinRange);
+    const filteredIssues = rawData.issues.filter(isWithinRange);
+
+    // Recalculate Roles
+    const roles = filteredUsers.reduce((acc, curr) => {
+       acc[curr.role] = (acc[curr.role] || 0) + 1;
+       return acc;
+    }, {});
+
+    // Recalculate Categories
+    const categories = filteredBooks.reduce((acc, curr) => {
+       const cat = curr.category || 'Uncategorized';
+       acc[cat] = (acc[cat] || 0) + 1;
+       return acc;
+    }, {});
+
+    // Recalculate Fines
+    const calculatedPending = filteredIssues.reduce((sum, issue) => sum + Number(issue.fineAmount || 0), 0);
+
+    // If dates are picked, calculate exact stats for that period. Otherwise, use all-time stats.
+    const isFiltering = dates.startDate || dates.endDate;
+    const stats = isFiltering ? {
+      totalUsers: filteredUsers.length,
+      totalBooks: filteredBooks.length,
+      totalIssued: filteredIssues.length,
+      pendingFinesCount: filteredIssues.filter(i => i.fineAmount > 0).length
+    } : rawData.defaultStats;
+
+    return {
+       stats,
+       usersRoleDist: [
+         (roles['Admin'] || 0) + (roles['Librarian'] || 0), 
+         roles['Student'] || 0,
+         roles['Professor'] || 0
+       ],
+       booksCatDist: {
+         labels: Object.keys(categories),
+         data: Object.values(categories)
+       },
+       finesPending: calculatedPending,
+       finesCollected: Math.floor(calculatedPending * 1.5) 
+    };
+  }, [rawData, dates]);
+
+
+  // 3. PDF Generator (Automatically uses the filtered data!)
+  const generateSystemReportPDF = () => {
+    if (!data) return;
+    const doc = new jsPDF();
+
+    // Report Header
+    doc.setFontSize(22);
+    doc.setTextColor(30, 41, 59); // Slate-800
+    doc.text("Liborbit Official", 14, 20);
+
+    doc.setFontSize(14);
+    doc.setTextColor(79, 70, 229); // Indigo-600
+    doc.text("System Analytics & Summary Report", 14, 30);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139); // Slate-500
+    doc.text(`Generated by: ${user?.name || 'Administrator'}`, 14, 38);
+    
+    // Add the specific Date Range to the PDF
+    const dateRangeText = (dates.startDate || dates.endDate) 
+        ? `Reporting Period: ${dates.startDate || 'Beginning'} to ${dates.endDate || 'Present'}` 
+        : `Reporting Period: All Time`;
+    doc.text(dateRangeText, 14, 44);
+    doc.text(`Export Date: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 14, 50);
+
+    // Section 1: Overall Financial & System Summary
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text("1. Overall System Summary", 14, 62);
+
+    autoTable(doc, {
+      startY: 67,
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+      body: [
+        ['Total Books Added', data.stats.totalBooks.toString()],
+        ['Total Accounts Registered', data.stats.totalUsers.toString()],
+        ['Books Issued', data.stats.totalIssued.toString()],
+        ['Pending Fines Accrued', `Rs. ${data.finesPending}`]
+      ],
+      styles: { fontSize: 10, cellPadding: 4 },
+      alternateRowStyles: { fillColor: [248, 250, 252] }
+    });
+
+    // Section 2: User Demographics
+    let currentY = doc.lastAutoTable.finalY + 15;
+    doc.text("2. User Role Distribution", 14, currentY);
+
+    autoTable(doc, {
+      startY: currentY + 5,
+      theme: 'grid',
+      head: [['User Role Category', 'Total Accounts']],
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+      body: [
+        ['Staff (Admins & Librarians)', data.usersRoleDist[0].toString()],
+        ['Students', data.usersRoleDist[1].toString()],
+        ['Professors', data.usersRoleDist[2].toString()]
+      ],
+      styles: { fontSize: 10, cellPadding: 4 },
+      alternateRowStyles: { fillColor: [248, 250, 252] }
+    });
+
+    // Section 3: Catalog Breakdown by Category
+    currentY = doc.lastAutoTable.finalY + 15;
+    if (currentY > 230) { doc.addPage(); currentY = 20; }
+    doc.text("3. Catalog Inventory by Category", 14, currentY);
+
+    const categoryRows = data.booksCatDist.labels.map((label, index) => [
+      label, data.booksCatDist.data[index].toString()
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 5,
+      theme: 'grid',
+      head: [['Book Category', 'Number of Titles']],
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+      body: categoryRows.length > 0 ? categoryRows : [['No books in this date range', '0']],
+      styles: { fontSize: 10, cellPadding: 4 },
+      alternateRowStyles: { fillColor: [248, 250, 252] }
+    });
+
+    doc.save(`Liborbit_System_Report_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-  };
+  const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
+  const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } } };
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
-  };
-
-  // --- Chart Configurations ---
-  const userRolesData = {
-    labels: ['Staff', 'Students', 'Professors'],
-    datasets: [{
-      data: data.usersRoleDist,
-      backgroundColor: ['#f43f5e', '#6366f1', '#0ea5e9'],
-      borderWidth: 0,
-      hoverOffset: 4
-    }]
-  };
-
-  const booksCategoryData = {
-     labels: data.booksCatDist.labels.length > 0 ? data.booksCatDist.labels : ['Science', 'Fiction', 'History'],
-     datasets: [{
-        label: 'Books per Category',
-        data: data.booksCatDist.data.length > 0 ? data.booksCatDist.data : [10, 20, 5],
-        backgroundColor: 'rgba(99, 102, 241, 0.8)',
-        borderRadius: 4
-     }]
-  };
-
-  if (isLoading) {
+  if (isLoading || !data) {
      return (
        <div className="space-y-6">
           <div className="h-24 bg-slate-100 animate-pulse rounded-2xl"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
              {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-slate-100 animate-pulse rounded-2xl"></div>)}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-             <div className="h-[400px] bg-slate-100 animate-pulse rounded-2xl"></div>
-             <div className="h-[400px] bg-slate-100 animate-pulse rounded-2xl"></div>
-          </div>
        </div>
      );
   }
 
   return (
-    <div className="space-y-8 report-container">
+    <div className="space-y-6">
       {/* Header section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-4 border-b border-slate-200">
         <div>
           <h1 className="text-4xl font-display font-bold text-slate-800 tracking-tight mb-2">
             System Reports
           </h1>
-          <p className="text-slate-500 font-medium print:hidden">
-            Comprehensive overview and analytics of the library system.
-          </p>
-          <p className="hidden print:block text-slate-500 font-medium">
-             Generated on: {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+          <p className="text-slate-500 font-medium">
+            Analyze library performance over any time period.
           </p>
         </div>
-        
         <button 
-          onClick={handlePrint}
-          className="print:hidden flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 px-4 py-2.5 rounded-xl font-semibold shadow-sm transition-all"
+          onClick={generateSystemReportPDF}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold shadow-sm transition-all shrink-0"
         >
-          <Printer size={18} />
-          Print / Export PDF
+          <Download size={20} /> Export Report (PDF)
         </button>
       </div>
 
+      {/* NEW: Date Range Filter Bar */}
+      <AnimatedCard className="p-4 border-slate-200 shadow-sm bg-white">
+        <div className="flex flex-col md:flex-row gap-4 items-end">
+           <div className="flex flex-1 items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+                 <Calendar size={18} />
+              </div>
+              <div className="w-full">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">From Date</label>
+                <input 
+                  type="date" 
+                  value={dates.startDate}
+                  onChange={(e) => setDates({...dates, startDate: e.target.value})}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-colors text-slate-700 font-medium"
+                />
+              </div>
+           </div>
+           <div className="w-full flex-1">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">To Date</label>
+              <input 
+                type="date" 
+                value={dates.endDate}
+                onChange={(e) => setDates({...dates, endDate: e.target.value})}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-colors text-slate-700 font-medium"
+              />
+           </div>
+           {(dates.startDate || dates.endDate) && (
+               <button 
+                 onClick={() => setDates({startDate: '', endDate: ''})}
+                 className="px-5 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold transition-colors border border-rose-100 shrink-0 w-full md:w-auto"
+               >
+                 Clear Filter
+               </button>
+           )}
+        </div>
+      </AnimatedCard>
+
       <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
-         
          {/* Summary Cards */}
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4">
+            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                   <BookOpen size={28} />
                </div>
                <div>
-                  <div className="text-sm font-semibold text-slate-500 mb-1">Total Catalog</div>
+                  <div className="text-sm font-semibold text-slate-500 mb-1">Books Added</div>
                   <div className="text-3xl font-display font-bold text-slate-800">{data.stats.totalBooks}</div>
                </div>
             </AnimatedCard>
 
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4">
+            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
                <div className="w-14 h-14 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
                   <Users size={28} />
                </div>
                <div>
-                  <div className="text-sm font-semibold text-slate-500 mb-1">Registered Users</div>
+                  <div className="text-sm font-semibold text-slate-500 mb-1">Users Joined</div>
                   <div className="text-3xl font-display font-bold text-slate-800">{data.stats.totalUsers}</div>
                </div>
             </AnimatedCard>
 
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4">
+            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <History size={28} />
                </div>
                <div>
-                  <div className="text-sm font-semibold text-slate-500 mb-1">Active Issues</div>
+                  <div className="text-sm font-semibold text-slate-500 mb-1">Books Issued</div>
                   <div className="text-3xl font-display font-bold text-slate-800">{data.stats.totalIssued}</div>
                </div>
             </AnimatedCard>
 
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4">
+            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
                   <IndianRupee size={28} />
                </div>
                <div>
-                  <div className="text-sm font-semibold text-slate-500 mb-1">Pending Fines</div>
+                  <div className="text-sm font-semibold text-slate-500 mb-1">Accrued Fines</div>
                   <div className="text-3xl font-display font-bold text-slate-800">₹{data.finesPending}</div>
                </div>
             </AnimatedCard>
          </div>
 
          {/* Charts Section */}
-         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4">
-            
-            {/* User Roles Donut Chart */}
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex flex-col items-center">
-               <h3 className="text-xl font-display font-semibold text-slate-800 mb-6 self-start">User Demographics</h3>
+         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex flex-col items-center bg-white">
+               <h3 className="text-xl font-display font-semibold text-slate-800 mb-6 self-start">User Demographics (Period)</h3>
                <div className="w-full max-w-[300px] aspect-square flex items-center justify-center pb-4">
                  <Doughnut 
-                    data={userRolesData} 
-                    options={{
-                       responsive: true,
-                       maintainAspectRatio: false,
-                       plugins: {
-                          legend: { position: 'bottom', labels: { padding: 20, font: { family: "'Inter', sans-serif", weight: '500' } } }
-                       },
-                       cutout: '65%'
-                    }}
+                    data={{
+                      labels: ['Staff', 'Students', 'Professors'],
+                      datasets: [{ data: data.usersRoleDist, backgroundColor: ['#f43f5e', '#6366f1', '#0ea5e9'], borderWidth: 0 }]
+                    }} 
+                    options={{ responsive: true, maintainAspectRatio: false }}
                  />
                </div>
             </AnimatedCard>
 
-            {/* Books by Category Bar Chart */}
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex flex-col">
-               <h3 className="text-xl font-display font-semibold text-slate-800 mb-6">Catalog by Category</h3>
+            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex flex-col bg-white">
+               <h3 className="text-xl font-display font-semibold text-slate-800 mb-6">Catalog Additions by Category</h3>
                <div className="w-full h-[300px] flex-1">
                  <Bar 
-                    data={booksCategoryData}
-                    options={{
-                       responsive: true,
-                       maintainAspectRatio: false,
-                       plugins: { legend: { display: false } },
-                       scales: {
-                          y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0 } },
-                          x: { grid: { display: false } }
-                       }
+                    data={{
+                       labels: data.booksCatDist.labels.length > 0 ? data.booksCatDist.labels : ['No Data'],
+                       datasets: [{
+                          label: 'Books Added',
+                          data: data.booksCatDist.data.length > 0 ? data.booksCatDist.data : [0],
+                          backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                          borderRadius: 4
+                       }]
                     }}
+                    options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }}
                  />
                </div>
             </AnimatedCard>
-
          </div>
-
-         {/* Detailed Insights Section */}
-         <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm bg-indigo-900 text-white mt-8 print:hidden">
-             <div className="flex flex-col md:flex-row items-center gap-6">
-                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                   <TrendingUp size={32} className="text-indigo-200" />
-                </div>
-                <div className="flex-1 text-center md:text-left">
-                   <h3 className="text-xl font-display font-bold text-white mb-2">Library Performance</h3>
-                   <p className="text-indigo-200 max-w-2xl leading-relaxed">
-                      The library system is currently maintaining an active issue rate with {data.stats.totalIssued} books in circulation.
-                      Total registered users span {data.usersRoleDist[1] + data.usersRoleDist[2]} active readers.
-                      Ensure timely notifications to collect the ₹{data.finesPending} pending fines.
-                   </p>
-                </div>
-             </div>
-         </AnimatedCard>
       </motion.div>
-
-      <style>{`
-        @media print {
-          body { background: white; }
-          .report-container { width: 100%; margin: 0; padding: 0; }
-          .glass-panel, .shadow-sm { box-shadow: none !important; border: 1px solid #e2e8f0; }
-        }
-      `}</style>
     </div>
   );
 };

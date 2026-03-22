@@ -3,7 +3,7 @@ const db = require('../config/db');
 exports.getCustomRequests = async (req, res) => {
   try {
     let query = `
-      SELECT c.id AS _id, c.title, c.author, c.edition, c.status, c.request_date AS requestDate,
+      SELECT c.id AS _id, c.title, c.author, c.edition, c.status, c.request_date AS requestDate, c.reason,
              u.user_id AS userId, u.full_name AS userName, u.email, u.role, u.roll_no AS rollNo, u.department
       FROM custom_book_requests c JOIN users u ON c.user_id = u.user_id WHERE c.status = 'pending'
     `;
@@ -12,7 +12,7 @@ exports.getCustomRequests = async (req, res) => {
 
     const [requests] = await db.query(query);
     const formatted = requests.map(r => ({
-       _id: r._id, status: r.status, requestDate: r.requestDate,
+       _id: r._id, status: r.status, requestDate: r.requestDate, reason: r.reason,
        book: { title: r.title, author: r.author, edition: r.edition, coverImage: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=300' },
        user: { _id: r.userId, name: r.userName, email: r.email, role: r.role.charAt(0).toUpperCase() + r.role.slice(1), rollNo: r.rollNo, department: r.department }, isCustom: true
     }));
@@ -22,12 +22,16 @@ exports.getCustomRequests = async (req, res) => {
 
 exports.createCustomRequest = async (req, res) => {
   try {
-    const { title, author, edition } = req.body;
+    const { title, author, edition, reason } = req.body;
     if (!title || !author) return res.status(400).json({ message: 'Title and author are required' });
+    
     const [existing] = await db.query('SELECT id FROM custom_book_requests WHERE title = ? AND author = ? AND user_id = ? AND status = "pending"', [title, author, req.user.id]);
     if (existing.length > 0) return res.status(400).json({ message: 'You already have a pending request' });
 
-    const [result] = await db.query('INSERT INTO custom_book_requests (user_id, title, author, edition) VALUES (?, ?, ?, ?)', [req.user.id, title, author, edition || null]);
+    const [result] = await db.query(
+      'INSERT INTO custom_book_requests (user_id, title, author, edition, reason) VALUES (?, ?, ?, ?, ?)', 
+      [req.user.id, title, author, edition || null, reason || null]
+    );
     res.status(201).json({ _id: result.insertId, message: 'Custom request submitted successfully' });
   } catch (error) { res.status(500).json({ message: 'Server error: ' + error.message }); }
 };
@@ -120,39 +124,87 @@ exports.processCustomRequest = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error: ' + error.message }); }
 };
 
-// Fetch only the requests made by the logged-in user
 exports.getMyRequests = async (req, res) => {
   try {
     const userId = req.user.id || req.user.user_id;
 
-    // Fixed: Changed r.request_id to r.id
-    const [myRequests] = await db.query(`
+    // 1. Fetch Standard Requests
+    const [standardRequests] = await db.query(`
       SELECT 
         r.id AS _id,
         r.status,
         r.request_date,
         b.title,
-        b.author
+        b.author,
+        NULL AS reason,
+        'standard' AS type
       FROM book_requests r
       JOIN books b ON r.book_id = b.book_id
       WHERE r.user_id = ?
-      ORDER BY r.request_date DESC
     `, [userId]);
 
-    // Format the requests for the frontend
-    const formattedRequests = myRequests.map(req => ({
+    // 2. Fetch Custom Requests 
+    const [customRequests] = await db.query(`
+      SELECT 
+        id AS _id,
+        status,
+        request_date,
+        title,
+        author,
+        reason,
+        'custom' AS type
+      FROM custom_book_requests
+      WHERE user_id = ?
+    `, [userId]);
+
+    const allRequests = [...standardRequests, ...customRequests];
+    allRequests.sort((a, b) => new Date(b.request_date) - new Date(a.request_date));
+
+    const formattedRequests = allRequests.map(req => ({
       _id: req._id,
       status: req.status,
       request_date: req.request_date,
       title: req.title,
       author: req.author,
-      reason: req.reason || 'Requested from library catalog' // Fallback text
+      type: req.type, // <--- THE FIX: I added this line so the frontend knows what table to delete from!
+      reason: req.reason || (req.type === 'custom' 
+        ? 'Requested new book purchase for the library' 
+        : 'Requested issue from library catalog')
     }));
 
     res.json(formattedRequests);
     
   } catch (error) {
     console.error('🔥 SQL ERROR IN MY REQUESTS:', error.message);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+exports.deleteMyRequest = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user.user_id;
+    const { id, type } = req.params; // 'standard' or 'custom'
+
+    const tableName = type === 'custom' ? 'custom_book_requests' : 'book_requests';
+    
+    // 1. Verify ownership and ensure the record exists
+    const [request] = await db.query(`SELECT status FROM ${tableName} WHERE id = ? AND user_id = ?`, [id, userId]);
+    
+    if (request.length === 0) {
+      return res.status(404).json({ message: 'Request not found.' });
+    }
+
+    // 2. Safety Check: Don't allow deleting 'pending' requests that are still being reviewed
+    if (request[0].status === 'pending') {
+      return res.status(400).json({ message: 'Cannot delete a pending request while it is under review.' });
+    }
+
+    // 3. Delete the record
+    await db.query(`DELETE FROM ${tableName} WHERE id = ?`, [id]);
+    
+    res.json({ message: 'History record removed successfully.' });
+  } catch (error) {
+    console.error('🔥 Delete History Error:', error.message);
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };

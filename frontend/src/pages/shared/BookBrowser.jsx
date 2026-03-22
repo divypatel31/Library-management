@@ -8,7 +8,7 @@ import BookDetailsModal from '../../components/BookDetailsModal';
 import Modal from '../../components/Modal';
 import Input from '../../components/Input';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // <-- Cleaned up the imports for Vite
+import autoTable from 'jspdf-autotable'; 
 
 const BookBrowser = () => {
   const { user } = useAuth();
@@ -79,7 +79,6 @@ const BookBrowser = () => {
        setIsAddRoute(false);
        setAddForm({ title: '', author: '', isbn: '', category: '', quantity: '' });
     } catch (error) {
-       // This will perfectly catch our new backend ISBN duplicate error!
        alert(error.response?.data?.message || 'Failed to add book');
     } finally {
        setIsSubmitting(false);
@@ -132,7 +131,6 @@ const BookBrowser = () => {
       `${book.available || 0} / ${book.quantity || 0}`
     ]);
 
-    // THE FIX: autoTable is called directly with 'doc' passed as the first argument
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
@@ -144,7 +142,7 @@ const BookBrowser = () => {
         fontStyle: 'bold'
       },
       alternateRowStyles: {
-        fillColor: [248, 250, 252] // Very light slate
+        fillColor: [248, 250, 252] 
       },
       styles: { 
         fontSize: 10, 
@@ -287,7 +285,6 @@ const BookBrowser = () => {
       {/* Existing Modals */}
       <IssueBookModal isOpen={isIssueModalOpen} onClose={() => setIsIssueModalOpen(false)} book={selectedBookForIssue} onSuccess={fetchBooks} />
       
-      {/* UPDATE: Passed fetchBooks so modal qty edits instantly update the main view */}
       <BookDetailsModal 
         isOpen={isDetailsModalOpen} 
         onClose={() => setIsDetailsModalOpen(false)} 
@@ -333,7 +330,8 @@ const BookBrowser = () => {
                   onChange={e => setRequestForm({...requestForm, reason: e.target.value})} 
                   rows="3" 
                   placeholder="Why do you need this book? (e.g., Required for CS-101 coursework)"
-                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                  /* THE FIX: Added text-slate-800, bg-white, and placeholder-slate-400 */
+                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-slate-800 bg-white placeholder-slate-400"
                 ></textarea>
               </div>
            </div>

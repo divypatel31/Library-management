@@ -79,6 +79,4 @@ Bash
 npm run dev
 The application will now be running at http://localhost:5173.
 
-[ ] Barcode/QR Code scanner integration for rapid book issuing.
 
-Built with ❤️ by Divy Patel

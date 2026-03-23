@@ -89,7 +89,7 @@ const Sidebar = () => {
             transition={{ duration: 0.2 }}
          >
            <Library className="text-indigo-600 shrink-0" size={28} />
-           {isOpen && <span className="text-xl font-display font-bold text-slate-800 whitespace-nowrap">AutoLib.ai</span>}
+           {isOpen && <span className="text-xl font-display font-bold text-slate-800 whitespace-nowrap">LibOrbit</span>}
          </motion.div>
          
          {!isOpen && (

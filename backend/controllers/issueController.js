@@ -49,14 +49,17 @@ exports.getIssues = async (req, res) => {
       dueDate: row.dueDate,
       returnDate: row.returnDate,
       status: row.status,
-      // Default fine to 0 for the frontend (since it's in another table)
       fineAmount: 0, 
       
       book: {
         _id: row.bookId,
         title: row.bookTitle,
         author: row.bookAuthor,
-        isbn: row.bookIsbn
+        isbn: row.bookIsbn,
+        // THE FIX: Dynamically generate the coverImage using the ISBN so the frontend never crashes!
+        coverImage: row.bookIsbn 
+          ? `https://covers.openlibrary.org/b/isbn/${row.bookIsbn}-L.jpg` 
+          : 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300'
       },
       
       user: {
@@ -72,7 +75,6 @@ exports.getIssues = async (req, res) => {
     res.json(formattedIssues);
 
   } catch (error) {
-    // This logs the EXACT SQL error to your backend terminal so we can see what went wrong!
     console.error('Fetch Issues SQL Error:', error.message);
     res.status(500).json({ message: 'Server error while fetching issue history: ' + error.message });
   }
@@ -118,10 +120,8 @@ exports.returnBook = async (req, res) => {
   
   try {
     await connection.beginTransaction();
-    
     const issueId = req.params.id;
 
-    // 1. Get the issue details
     const [issues] = await connection.query(
       'SELECT book_id, user_id, due_date, status FROM issued_books WHERE issue_id = ? FOR UPDATE',
       [issueId]
@@ -138,15 +138,13 @@ exports.returnBook = async (req, res) => {
       return res.status(400).json({ message: 'This book has already been returned.' });
     }
 
-    // 2. CALCULATE FINES LOGIC
     const dueDate = new Date(issue.due_date);
     const today = new Date();
-    
     dueDate.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
 
     let fineAmount = 0;
-    const FINE_PER_DAY = 10; // ₹10 per day late
+    const FINE_PER_DAY = 10; 
 
     if (today > dueDate) {
       const diffTime = Math.abs(today - dueDate);
@@ -154,23 +152,27 @@ exports.returnBook = async (req, res) => {
       fineAmount = diffDays * FINE_PER_DAY;
     }
 
-    // 3. Update the issued_books record (This automatically makes the book available again!)
+    // Update issue status to returned
     await connection.query(
       'UPDATE issued_books SET status = "returned", return_date = NOW() WHERE issue_id = ?',
       [issueId]
     );
 
-    // Step 4 (updating the books table directly) was removed because 'available' is calculated dynamically!
-
-    // 5. If they are late, create a fine record
+    // AUTO-DEDUCT FINE LOGIC
     if (fineAmount > 0) {
+      // 1. Cut money from the user's wallet
       await connection.query(
-        'INSERT INTO fines (user_id, issue_id, amount, status) VALUES (?, ?, ?, "pending")',
+        'UPDATE users SET wallet_balance = wallet_balance - ? WHERE user_id = ?',
+        [fineAmount, issue.user_id]
+      );
+      
+      // 2. Insert fine record as "paid" because we already took the money!
+      await connection.query(
+        'INSERT INTO fines (user_id, issue_id, amount, status) VALUES (?, ?, ?, "paid")',
         [issue.user_id, issueId, fineAmount]
       );
     }
 
-    // 6. Success!
     await connection.commit();
     res.json({ message: 'Book returned successfully', fine: fineAmount });
 
@@ -183,14 +185,11 @@ exports.returnBook = async (req, res) => {
   }
 };
 
-// NEW: Delete an issue history record
-// NEW: Delete an issue history record
+// Delete an issue history record
 exports.deleteIssueRecord = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1. Double-check that it is actually returned before deleting 
-    // FIX: Changed table name from 'issues' to 'issued_books'
     const [issue] = await db.query('SELECT status FROM issued_books WHERE issue_id = ?', [id]);
     
     if (issue.length === 0) {
@@ -201,8 +200,6 @@ exports.deleteIssueRecord = async (req, res) => {
       return res.status(400).json({ message: 'Safety Lock: You can only delete records that have been returned.' });
     }
 
-    // 2. Delete the record
-    // FIX: Changed table name from 'issues' to 'issued_books'
     await db.query('DELETE FROM issued_books WHERE issue_id = ?', [id]);
     res.json({ message: 'History record deleted successfully!' });
     

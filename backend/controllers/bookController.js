@@ -17,11 +17,9 @@ exports.createBook = async (req, res) => {
     const { title, author, isbn, category, quantity } = req.body;
 
     // 1. SMART CHECK: Does this ISBN already exist?
-    // We only check if an ISBN was actually provided
     if (isbn && isbn.trim() !== '') {
       const [existingBook] = await db.query('SELECT title FROM books WHERE isbn = ?', [isbn]);
       
-      // If the array has anything in it, the book exists!
       if (existingBook.length > 0) {
         return res.status(400).json({ 
           message: `A book with this ISBN already exists ("${existingBook[0].title}"). Please update its quantity instead of adding a new entry.` 
@@ -29,10 +27,9 @@ exports.createBook = async (req, res) => {
       }
     }
 
-    // 2. If it doesn't exist, proceed with adding it
-    // Note: The 'available' copies should equal the total 'quantity' when first added
+    // 2. THE FIX: Changed 'available' to 'available_quantity' to match your database schema
     const [result] = await db.query(
-      'INSERT INTO books (title, author, isbn, category, quantity, available) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO books (title, author, isbn, category, quantity, available_quantity) VALUES (?, ?, ?, ?, ?, ?)',
       [title, author, isbn, category, quantity, quantity] 
     );
 
@@ -74,6 +71,7 @@ exports.updateBook = async (req, res) => {
 };
 
 // Delete a book and its history safely
+// Delete a book and its history safely
 exports.deleteBook = async (req, res) => {
   const { id } = req.params;
   
@@ -91,10 +89,17 @@ exports.deleteBook = async (req, res) => {
     }
 
     // 2. CLEANUP: Delete child records to satisfy MySQL Foreign Key constraints
-    // Delete any pending or past requests for this book
+    
+    // Step A: Delete any pending or past requests for this book
     await db.query('DELETE FROM book_requests WHERE book_id = ?', [id]);
     
-    // Delete the borrowing history for this book
+    // Step B (THE FIX): Delete fines attached to this book's issue history!
+    await db.query(
+      'DELETE FROM fines WHERE issue_id IN (SELECT issue_id FROM issued_books WHERE book_id = ?)', 
+      [id]
+    );
+
+    // Step C: Now it is safe to delete the borrowing history for this book
     await db.query('DELETE FROM issued_books WHERE book_id = ?', [id]);
 
     // 3. Finally, delete the book itself
@@ -104,10 +109,10 @@ exports.deleteBook = async (req, res) => {
       return res.status(404).json({ message: 'Book not found' });
     }
 
-    res.json({ message: 'Book and its history deleted successfully' });
+    res.json({ message: 'Book and its entire history deleted successfully!' });
     
   } catch (error) {
-    console.error('Delete Book Error:', error);
+    console.error('🔥 Delete Book Error:', error);
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };

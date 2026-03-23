@@ -3,12 +3,13 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import Input from '../../components/Input';
-import { Library, ArrowRight, AlertCircle } from 'lucide-react';
+import { Library, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(''); // Added success state
   const [isLoading, setIsLoading] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
@@ -34,21 +35,29 @@ const Login = () => {
 
     setIsLoading(true);
     setError('');
+    setSuccess('');
 
+    // Calls the login function from your AuthContext
     const res = await login(email, password);
     
     setIsLoading(false);
     
-    if (res.success) {
-       const roleMap = {
-         admin: '/admin',
-         librarian: '/librarian',
-         student: '/student',
-         professor: '/professor',
-       };
-       navigate(roleMap[res.role?.toLowerCase()] || '/');
+    if (res && res.success) {
+       setSuccess('Verification complete! Logging you in...');
+       
+       // Wait 1.5 seconds so they can read the success message!
+       setTimeout(() => {
+         const roleMap = {
+           admin: '/admin',
+           librarian: '/librarian',
+           student: '/student',
+           professor: '/professor',
+         };
+         navigate(roleMap[res.role?.toLowerCase()] || '/');
+       }, 1500);
     } else {
-       setError(res.message || 'Invalid email or password.');
+       // Shows the error from the backend safely
+       setError(res?.message || 'Invalid email or password. Please try again.');
     }
   };
 
@@ -79,7 +88,7 @@ const Login = () => {
             >
               <Library className="text-indigo-600" size={32} strokeWidth={2.5} />
             </motion.div>
-            <h2 className="text-2xl font-display font-bold text-slate-800 tracking-tight mb-2">WWelcome to Liborbit</h2>
+            <h2 className="text-2xl font-display font-bold text-slate-800 tracking-tight mb-2">Welcome to LibOrbit</h2>
             <p className="text-slate-500 text-center text-sm">
               Sign in to manage library resources securely.
             </p>
@@ -87,10 +96,11 @@ const Login = () => {
 
           <form onSubmit={handleLogin} className="space-y-4">
             
-            {/* Proper UI Error Display */}
-            <AnimatePresence>
+            {/* Proper UI Error & Success Display */}
+            <AnimatePresence mode="wait">
               {error && (
                 <motion.div 
+                  key="error"
                   initial={{ opacity: 0, y: -10, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: 'auto' }}
                   exit={{ opacity: 0, y: -10, height: 0 }}
@@ -99,6 +109,21 @@ const Login = () => {
                   <div className="bg-rose-50 text-rose-600 p-3.5 rounded-xl border border-rose-100 flex items-start gap-3 text-sm font-medium mb-1">
                     <AlertCircle size={18} className="shrink-0 mt-0.5" />
                     <span>{error}</span>
+                  </div>
+                </motion.div>
+              )}
+
+              {success && (
+                <motion.div 
+                  key="success"
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl border border-emerald-200 flex items-start gap-3 text-sm font-bold mb-1">
+                    <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
+                    <span>{success}</span>
                   </div>
                 </motion.div>
               )}
@@ -123,7 +148,6 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
               />
               
-              {/* Forgot Password Link added here */}
               <div className="flex justify-end mt-2">
                 <Link to="/forgot-password" className="text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors">
                   Forgot password?
@@ -137,10 +161,10 @@ const Login = () => {
               disabled={isLoading}
               type="submit"
               className={`w-full py-3.5 mt-4 rounded-xl flex items-center justify-center gap-2 text-white font-semibold transition-all shadow-md
-                 ${isLoading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 cursor-pointer'}
+                 ${isLoading && !success ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 cursor-pointer'}
               `}
             >
-              {isLoading ? (
+              {isLoading && !success ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>

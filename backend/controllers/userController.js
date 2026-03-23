@@ -131,3 +131,26 @@ exports.updateUser = async (req, res) => {
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };
+
+// backend/controllers/userController.js
+
+exports.getWalletBalance = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user.user_id;
+    const [rows] = await db.query('SELECT wallet_balance FROM users WHERE user_id = ?', [userId]);
+    res.json({ balance: rows[0]?.wallet_balance || 0 });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+exports.addDummyFunds = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user.user_id;
+    const { amount } = req.body;
+    await db.query('UPDATE users SET wallet_balance = wallet_balance + ? WHERE user_id = ?', [amount, userId]);
+    res.json({ message: `Successfully added ₹${amount} to wallet!` });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};

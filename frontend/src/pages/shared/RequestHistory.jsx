@@ -13,7 +13,6 @@ const RequestHistory = () => {
   const fetchMyRequests = async () => {
     try {
       setIsLoading(true);
-      // Calls: router.get('/my-history', protect, getMyRequests)
       const res = await api.get('/requests/my-history'); 
       setRequests(res.data);
     } catch (error) {
@@ -29,10 +28,9 @@ const RequestHistory = () => {
 
   // 2. Handle Delete Functionality
   const handleDelete = async (id, type, title) => {
-    if (!window.confirm(`Remove "${title}" from your history?`)) return;
+    if (!window.confirm(`Are you sure you want to remove "${title}" from your history?`)) return;
     try {
-      // Calls: router.delete('/my-history/:type/:id', protect, deleteMyRequest)
-      // Note: 'type' will be 'standard' or 'custom' from the backend response
+      // Backend route: router.delete('/my-history/:type/:id', protect, deleteMyRequest)
       await api.delete(`/requests/my-history/${type}/${id}`);
       fetchMyRequests(); // Refresh list after deletion
     } catch (error) {
@@ -56,7 +54,7 @@ const RequestHistory = () => {
         );
       default:
         return (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-200">
             <Clock size={14} /> Pending
           </div>
         );
@@ -89,7 +87,7 @@ const RequestHistory = () => {
           placeholder="Search your requests..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+          className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm transition-all"
         />
       </div>
 
@@ -100,8 +98,16 @@ const RequestHistory = () => {
           ))}
         </div>
       ) : filteredRequests.length === 0 ? (
-        <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-500">
-          No records found.
+        <div className="flex flex-col items-center justify-center p-12 mt-8 text-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-[2rem]">
+           <div className="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500 mb-6">
+              <Book size={40} strokeWidth={1.5} />
+           </div>
+           <h3 className="text-2xl font-display font-bold text-slate-800 mb-2">No Requests Found</h3>
+           <p className="text-slate-500 max-w-md mx-auto">
+             {searchTerm 
+                ? "None of your requests match that search."
+                : "You haven't submitted any book requests yet."}
+           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
@@ -109,21 +115,11 @@ const RequestHistory = () => {
             {filteredRequests.map((req) => (
               <AnimatedCard 
                 key={`${req.type}-${req._id}`} 
-                className="bg-white border-slate-200 p-6 flex flex-col h-full hover:shadow-md transition-shadow relative group"
+                className="bg-white border-slate-200 p-6 flex flex-col h-full hover:shadow-md transition-all shadow-sm"
               >
                 
-                {/* Delete Button (Visible on hover if not pending) */}
-                {req.status !== 'pending' && (
-                  <button 
-                    onClick={() => handleDelete(req._id, req.type || 'standard', req.title)}
-                    className="absolute top-4 right-4 p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                    title="Delete from history"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                )}
-
-                <div className="flex justify-between items-start mb-4 gap-4 border-b border-slate-100 pb-4 pr-8">
+                {/* Header: Title, Author, Status */}
+                <div className="flex justify-between items-start mb-4 gap-4 pb-4 border-b border-slate-100">
                   <div className="flex-1">
                     <h3 className="font-bold text-lg text-slate-800 leading-tight mb-1">{req.title}</h3>
                     <p className="text-sm font-medium text-slate-500">by {req.author}</p>
@@ -133,16 +129,34 @@ const RequestHistory = () => {
                   </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-4 flex-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <FileText size={12} /> Reason
+                {/* Body: Reason Box */}
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-5 flex-1">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <FileText size={12} /> Reason for Request
                   </p>
                   <p className="text-slate-700 text-sm italic">"{req.reason || 'No reason provided.'}"</p>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mt-auto pt-3 border-t border-slate-100">
-                  <Calendar size={14} /> 
-                  Requested on {new Date(req.request_date || req.createdAt).toLocaleDateString()}
+                {/* Footer: Date & Action Buttons */}
+                <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                    <Calendar size={14} className="text-slate-400" /> 
+                    {new Date(req.request_date || req.createdAt).toLocaleDateString(undefined, {
+                       year: 'numeric', month: 'short', day: 'numeric'
+                    })}
+                  </div>
+                  
+                  {/* Delete Button (Only visible if status is NOT pending) */}
+                  {req.status !== 'pending' && (
+                    <button 
+                      onClick={() => handleDelete(req._id, req.type || 'standard', req.title)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors border border-transparent hover:border-rose-100"
+                      title="Remove from history"
+                    >
+                      <Trash2 size={14} />
+                      Remove
+                    </button>
+                  )}
                 </div>
 
               </AnimatedCard>

@@ -28,9 +28,12 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response && error.response.status === 401) {
-       // Optional: Log out on 401 token expired
-       localStorage.removeItem('user');
-       window.location.href = '/login';
+       // THE FIX: Check if the user is already on the login page.
+       // If they are, do NOT refresh the page so the local error message can show!
+       if (window.location.pathname !== '/login') {
+           localStorage.removeItem('user');
+           window.location.href = '/login';
+       }
     }
     return Promise.reject(error);
   }

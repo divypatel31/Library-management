@@ -146,7 +146,15 @@ const Announcements = () => {
           <Input label="Title" required value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="e.g. Library Closed on Friday" />
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Message</label>
-            <textarea required value={form.message} onChange={e => setForm({...form, message: e.target.value})} rows="4" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500"></textarea>
+            <textarea 
+              required 
+              value={form.message} 
+              onChange={e => setForm({...form, message: e.target.value})} 
+              rows="4" 
+              placeholder="Enter announcement details..."
+              /* FIX: Added text-slate-800, bg-white, and placeholder-slate-400 */
+              className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-slate-800 bg-white placeholder-slate-400"
+            ></textarea>
           </div>
           <button type="submit" className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700">Post Announcement</button>
         </form>

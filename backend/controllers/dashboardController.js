@@ -1,7 +1,6 @@
 const db = require('../config/db');
 
 exports.getStats = async (req, res) => {
-  console.log(`[DASHBOARD] Fetching stats for role: ${req.user.role}`);
   try {
     const role = req.user.role;
     let totalUsers = 0, totalBooks = 0, totalIssued = 0, pendingFinesCount = 0, pendingRequestsCount = 0;
@@ -24,7 +23,6 @@ exports.getStats = async (req, res) => {
        pendingFinesCount = fines[0].count;
     }
 
-    console.log(`[DASHBOARD] Stats successfully calculated. Sending response.`);
     return res.json({ role, totalUsers, totalBooks, totalIssued, pendingFinesCount, pendingRequestsCount });
   } catch (error) {
     console.error(`[DASHBOARD ERROR]:`, error);
@@ -33,7 +31,6 @@ exports.getStats = async (req, res) => {
 };
 
 exports.getChartData = async (req, res) => {
-   console.log(`[DASHBOARD] Fetching real chart data for the last 7 days`);
    try {
      const labels = [];
      const dates = [];

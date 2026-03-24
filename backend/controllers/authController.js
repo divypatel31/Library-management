@@ -53,31 +53,22 @@ exports.registerUser = async (req, res) => {
 };
 
 // 3. Send OTP
-// 3. Send OTP
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;
-  console.log(`[OTP Tracker] 1. Request received for email: ${email}`);
   
   try {
     const [users] = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
     if (users.length === 0) {
-      console.log(`[OTP Tracker] 2. User not found in DB`);
       return res.status(404).json({ message: 'User with this email does not exist' });
     }
-    console.log(`[OTP Tracker] 2. User found in DB`);
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 15 * 60000); // 15 mins
 
-    // Try saving to Database
-    console.log(`[OTP Tracker] 3. Attempting to save OTP to database...`);
+    // Save to Database
     await db.query('UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE email = ?', [otp, expires, email]);
-    console.log(`[OTP Tracker] 4. Successfully saved OTP to database.`);
 
-    // Try sending Email
-    console.log(`[OTP Tracker] 5. Attempting to send email via Nodemailer...`);
-    console.log(`[OTP Tracker] Email User configured as: ${process.env.EMAIL_USER}`); // This should NOT be undefined
-    
+    // Send Email
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: { 
@@ -92,7 +83,6 @@ exports.forgotPassword = async (req, res) => {
       subject: 'Library Password Reset OTP',
       text: `Your password reset OTP is: ${otp}. It will expire in 15 minutes.`
     });
-    console.log(`[OTP Tracker] 6. Email sent successfully!`);
 
     res.json({ message: 'OTP sent to your email' });
   } catch (error) {

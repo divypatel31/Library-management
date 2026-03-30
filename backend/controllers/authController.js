@@ -78,7 +78,7 @@ exports.forgotPassword = async (req, res) => {
       body: JSON.stringify({
         sender: { 
           name: "LibOrbit Support", 
-          email: process.env.BREVO_SENDER_EMAIL // The email you verified in Brevo
+          email: process.env.BREVO_USER // The email you verified in Brevo
         },
         to: [{ email: email }],
         subject: "Library Password Reset OTP",

@@ -7,8 +7,18 @@ dotenv.config();
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// --- UPDATED CORS MIDDLEWARE ---
+// This tells Render to accept requests from your Vercel frontend
+app.use(cors({
+  origin: [
+    'https://liborbit.vercel.app', // Your live Vercel frontend
+    'http://localhost:5173',       // Local Vite frontend
+    'http://localhost:3000'        // Local Create React App (just in case)
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true // Important if you use secure cookies or tokens
+}));
+
 app.use(express.json());
 
 // Routes

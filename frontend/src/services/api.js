@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: 'https://your-app-name.onrender.com/api', // Make sure /api is at the end!
 });
 
 // Add a request interceptor

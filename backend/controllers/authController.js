@@ -52,7 +52,7 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// 3. Send OTP
+// 3. Send OTP (UPDATED FOR BREVO)
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;
   
@@ -68,17 +68,20 @@ exports.forgotPassword = async (req, res) => {
     // Save to Database
     await db.query('UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE email = ?', [otp, expires, email]);
 
-    // Send Email
+    // Send Email using Brevo
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { 
-        user: process.env.EMAIL_USER, 
-        pass: process.env.EMAIL_PASS 
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: process.env.BREVO_USER, 
+        pass: process.env.BREVO_KEY 
       }
     });
 
     await transporter.sendMail({
-      from: '"LibOrbit" <' + process.env.EMAIL_USER + '>',
+      // The 'from' address uses your BREVO_USER variable so it matches your verified Brevo account
+      from: `"LibOrbit Support" <${process.env.BREVO_USER}>`, 
       to: email,
       subject: 'Library Password Reset OTP',
       text: `Your password reset OTP is: ${otp}. It will expire in 15 minutes.`

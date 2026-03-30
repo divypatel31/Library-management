@@ -49,13 +49,12 @@ const IssuedBooks = () => {
     }
   };
 
-  // NEW: Delete History Record Function
   const handleDeleteRecord = async (issueId) => {
     if (!window.confirm("Are you sure you want to permanently delete this history record?")) return;
     
     try {
       await api.delete(`/issues/${issueId}`);
-      fetchIssues(); // Refresh the list instantly
+      fetchIssues(); 
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to delete record');
     }
@@ -93,10 +92,13 @@ const IssuedBooks = () => {
     }
   };
 
+  // UPDATED: Now searches Title, Author, Category, User Name, User Roll No, and User Email
   const filteredIssues = issues.filter(issue => {
     const search = searchTerm.toLowerCase();
     return (
       issue.book?.title?.toLowerCase().includes(search) ||
+      issue.book?.author?.toLowerCase().includes(search) ||
+      issue.book?.category?.toLowerCase().includes(search) ||
       issue.user?.name?.toLowerCase().includes(search) ||
       issue.user?.rollNo?.toLowerCase().includes(search) ||
       issue.user?.email?.toLowerCase().includes(search)
@@ -139,7 +141,8 @@ const IssuedBooks = () => {
         </div>
         <input
           type="text"
-          placeholder={isStaff ? "Search by book title, student name, or roll no..." : "Search by book title..."}
+          // UPDATED PLACEHOLDER
+          placeholder={isStaff ? "Search by book, author, student name..." : "Search by book, author, or category..."}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
@@ -198,6 +201,13 @@ const IssuedBooks = () => {
                     <p className="text-slate-500 font-medium text-sm">
                        by {issue.book?.author || 'Unknown'}
                     </p>
+                    
+                    {/* Optionally display the category here if you want it visible! */}
+                    {issue.book?.category && (
+                      <p className="text-slate-400 text-xs mt-1 font-semibold uppercase tracking-wider">
+                         {issue.book.category}
+                      </p>
+                    )}
                     
                     {getStatusBadge(issue.status)}
                     
@@ -266,7 +276,6 @@ const IssuedBooks = () => {
                        </div>
                     )}
 
-                    {/* Mark as Returned Button (Shows when Issued) */}
                     {isStaff && issue.status.toLowerCase() === 'issued' && (
                        <button
                          onClick={() => handleReturnBook(issue._id)}
@@ -281,7 +290,6 @@ const IssuedBooks = () => {
                        </button>
                     )}
 
-                    {/* Delete Record Button (Shows when Returned) */}
                     {isStaff && issue.status.toLowerCase() === 'returned' && (
                        <button
                          onClick={() => handleDeleteRecord(issue._id || issue.issue_id)}

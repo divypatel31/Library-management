@@ -4,7 +4,6 @@ exports.getIssues = async (req, res) => {
   try {
     const { role, id } = req.user; 
 
-    // REMOVED fine_amount and cover_image to prevent 500 crash
     let query = `
       SELECT 
         i.issue_id AS _id, 
@@ -16,6 +15,7 @@ exports.getIssues = async (req, res) => {
         b.book_id AS bookId, 
         b.title AS bookTitle, 
         b.author AS bookAuthor, 
+        b.category AS bookCategory,
         b.isbn AS bookIsbn, 
         
         u.user_id AS userId, 
@@ -55,8 +55,8 @@ exports.getIssues = async (req, res) => {
         _id: row.bookId,
         title: row.bookTitle,
         author: row.bookAuthor,
+        category: row.bookCategory,
         isbn: row.bookIsbn,
-        // THE FIX: Dynamically generate the coverImage using the ISBN so the frontend never crashes!
         coverImage: row.bookIsbn 
           ? `https://covers.openlibrary.org/b/isbn/${row.bookIsbn}-L.jpg` 
           : 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300'
@@ -86,9 +86,11 @@ exports.issueBook = async (req, res) => {
     await connection.beginTransaction();
     const { bookId, userId, durationDays } = req.body;
     const [books] = await connection.query('SELECT available_quantity FROM books WHERE book_id = ? FOR UPDATE', [bookId]);
+    
     if (books.length === 0 || books[0].available_quantity <= 0) {
       await connection.rollback(); return res.status(400).json({ message: 'Book is not available' });
     }
+    
     const [targetUsers] = await connection.query('SELECT role FROM users WHERE user_id = ?', [userId]);
     if (targetUsers.length === 0) {
       await connection.rollback(); return res.status(404).json({ message: 'User not found' });
@@ -99,11 +101,14 @@ exports.issueBook = async (req, res) => {
     else if (targetUsers[0].role === 'professor') days = 60;
 
     const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + days);
+    
     const [result] = await connection.query(
       'INSERT INTO issued_books (book_id, user_id, issued_by, issue_date, due_date, status) VALUES (?, ?, ?, NOW(), ?, ?)',
       [bookId, userId, req.user.id, dueDate, 'issued']
     );
+    
     await connection.query('UPDATE books SET available_quantity = available_quantity - 1 WHERE book_id = ?', [bookId]);
+    
     await connection.commit();
     res.status(201).json({ _id: result.insertId, book: bookId, user: userId, dueDate, status: 'Issued' });
   } catch (error) {
@@ -156,6 +161,12 @@ exports.returnBook = async (req, res) => {
     await connection.query(
       'UPDATE issued_books SET status = "returned", return_date = NOW() WHERE issue_id = ?',
       [issueId]
+    );
+
+    // THE FIX: Add +1 back to the available_quantity of the book
+    await connection.query(
+      'UPDATE books SET available_quantity = available_quantity + 1 WHERE book_id = ?',
+      [issue.book_id]
     );
 
     // AUTO-DEDUCT FINE LOGIC

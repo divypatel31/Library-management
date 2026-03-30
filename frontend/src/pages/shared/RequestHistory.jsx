@@ -87,7 +87,8 @@ const RequestHistory = () => {
           placeholder="Search your requests..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm transition-all"
+          /* ADDED: text-slate-900 for dark text, placeholder-slate-400, and font-medium */
+          className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm transition-all text-slate-900 placeholder-slate-400 font-medium"
         />
       </div>
 

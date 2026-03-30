@@ -3,7 +3,7 @@ const db = require('../config/db');
 exports.getBooks = async (req, res) => {
   try {
     const [books] = await db.query(
-      'SELECT book_id AS _id, title, author, isbn, category, quantity, available_quantity AS available FROM books'
+      'SELECT book_id AS _id, title, author, isbn, category, quantity, available_quantity AS available, created_at FROM books'
     );
     res.json(books.map(b => ({ ...b, coverImage: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300' })));
   } catch (error) {

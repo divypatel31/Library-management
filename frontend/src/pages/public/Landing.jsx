@@ -21,27 +21,28 @@ const Landing = () => {
   }, [user, navigate]);
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-white selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen relative overflow-hidden bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900">
       
       {/* Dynamic Premium Background */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-indigo-200/40 blur-3xl animate-blob"></div>
         <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-sky-200/40 blur-3xl animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[0%] left-[20%] w-[60%] h-[40%] rounded-full bg-purple-100/40 blur-3xl animate-blob animation-delay-4000"></div>
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#f1f5f9_1px,transparent_1px),linear-gradient(to_bottom,#f1f5f9_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-40"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-40"></div>
       </div>
 
+      {/* FIXED NAVBAR */}
       <nav className="relative z-10 container mx-auto px-6 py-6 flex justify-between items-center">
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-2"
+          className="flex items-center gap-3"
         >
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-white/60 backdrop-blur-md border border-white shadow-sm">
-             <Library className="text-indigo-600 relative z-10" size={24} />
+          <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-white/80 backdrop-blur-md border border-white shadow-sm">
+             <Library className="text-indigo-600 relative z-10" size={24} strokeWidth={2.5} />
           </div>
           <span className="text-2xl font-display font-bold text-slate-800 tracking-tight">
-            Welcome to Liborbit<span className="text-indigo-600"></span>
+            LibOrbit
           </span>
         </motion.div>
         
@@ -51,10 +52,10 @@ const Landing = () => {
           whileHover={{ y: -2 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => navigate('/login')}
-          className="px-6 py-2.5 rounded-full glass-panel text-slate-700 font-semibold flex items-center gap-2 hover:bg-white/80 transition-all cursor-pointer"
+          className="px-6 py-2.5 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 shadow-sm text-slate-700 font-bold flex items-center gap-2 hover:bg-white hover:shadow-md transition-all cursor-pointer"
         >
           Access Portal
-          <ArrowRight size={16} className="text-slate-400" />
+          <ArrowRight size={18} className="text-indigo-500" />
         </motion.button>
       </nav>
 
@@ -68,29 +69,29 @@ const Landing = () => {
             className="flex flex-col gap-8"
           >
             <div className="inline-block relative self-start">
-               <span className="relative z-10 px-4 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 text-sm font-semibold tracking-wide flex items-center gap-2">
-                 <CheckCircle2 size={14} className="text-sky-500" />
+               <span className="relative z-10 px-4 py-1.5 rounded-full border border-sky-200 bg-sky-50/80 backdrop-blur-sm text-sky-700 text-sm font-bold tracking-wide flex items-center gap-2 shadow-sm">
+                 <CheckCircle2 size={16} className="text-sky-500" strokeWidth={2.5} />
                  Enterprise Library System
                </span>
             </div>
 
             <h1 className="text-5xl md:text-7xl font-display font-bold leading-tight text-slate-900 tracking-tight">
               Manage Knowledge with <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-sky-500">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-sky-500 drop-shadow-sm">
                 absolute precision.
               </span>
             </h1>
             
-            <p className="text-lg text-slate-600 max-w-xl leading-relaxed">
+            <p className="text-lg text-slate-600 max-w-xl leading-relaxed font-medium">
               Step into the future of campus library management. A seamlessly integrated, professional portal designed for administrators, librarians, students, and professors.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
                <motion.button
-                  whileHover={{ y: -2, boxShadow: "0 10px 25px -5px rgba(79, 70, 229, 0.3)" }}
+                  whileHover={{ y: -2, boxShadow: "0 10px 25px -5px rgba(79, 70, 229, 0.4)" }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => navigate('/login')}
-                  className="px-8 py-4 rounded-xl bg-indigo-600 text-white font-semibold text-lg flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-all cursor-pointer"
+                  className="px-8 py-4 rounded-xl bg-indigo-600 text-white font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer hover:bg-indigo-700"
                >
                   Initiate Session
                   <ArrowRight size={20} className="text-indigo-200" />
@@ -108,12 +109,12 @@ const Landing = () => {
              <motion.div 
                animate={{ rotateX: 360, rotateY: 360 }}
                transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-               className="absolute w-[400px] h-[400px] border border-slate-200 rounded-full border-t-indigo-400 border-l-sky-300"
+               className="absolute w-[400px] h-[400px] border border-slate-300/50 rounded-full border-t-indigo-500 border-l-sky-400"
              />
              <motion.div 
                animate={{ rotateX: -360, rotateY: 180 }}
                transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-               className="absolute w-[300px] h-[300px] border border-slate-100 rounded-full border-b-sky-400 border-r-indigo-300"
+               className="absolute w-[300px] h-[300px] border border-slate-200/50 rounded-full border-b-sky-500 border-r-indigo-400"
              />
 
              {/* Floating Books */}
@@ -131,14 +132,14 @@ const Landing = () => {
                     ease: "easeInOut",
                     delay: i * 0.3
                   }}
-                  className={`absolute glass p-3 rounded-xl flex flex-col items-center justify-center 
+                  className={`absolute bg-white/40 backdrop-blur-md p-3 rounded-2xl flex flex-col items-center justify-center border border-white shadow-xl shadow-slate-200/50
                      ${i === 0 ? '-left-10 top-20 w-40 h-56 z-20' : ''}
                      ${i === 1 ? 'right-0 top-10 w-48 h-64 z-10' : ''}
                      ${i === 2 ? 'left-1/4 bottom-10 w-36 h-48 z-30' : ''}
                   `}
                 >
-                  <div className={`w-full h-full rounded-md border border-white/40 flex items-center justify-center relative overflow-hidden bg-white/40`}>
-                     <BookOpen className="text-slate-300 w-1/2 h-1/2" />
+                  <div className={`w-full h-full rounded-xl border border-white/60 flex items-center justify-center relative overflow-hidden bg-white/50`}>
+                     <BookOpen className="text-indigo-300/80 w-1/2 h-1/2" strokeWidth={1.5} />
                   </div>
                 </motion.div>
              ))}
@@ -154,24 +155,24 @@ const Landing = () => {
               title: "Digital Catalog",
               desc: "Instant search and availability tracking of thousands of resources.",
               color: "text-sky-600",
-              bg: "bg-sky-50",
-              border: "border-sky-100"
+              bg: "bg-sky-100/50",
+              border: "border-sky-200/50"
             },
             {
               icon: Shield,
               title: "Role-Based Access",
               desc: "Secure portals tuned specifically for admins, librarians, and students.",
               color: "text-indigo-600",
-              bg: "bg-indigo-50",
-              border: "border-indigo-100"
+              bg: "bg-indigo-100/50",
+              border: "border-indigo-200/50"
             },
             {
               icon: Zap,
               title: "Automated Fines",
               desc: "Smart due-date tracking and automated penalty calculations.",
               color: "text-rose-600",
-              bg: "bg-rose-50",
-              border: "border-rose-100"
+              bg: "bg-rose-100/50",
+              border: "border-rose-200/50"
             }
           ].map((feature, idx) => (
              <motion.div
@@ -181,14 +182,14 @@ const Landing = () => {
                viewport={{ once: true }}
                transition={{ delay: idx * 0.1 }}
                whileHover={{ y: -5 }}
-               className="glass rounded-2xl p-8 transition-all group"
+               className="bg-white/60 backdrop-blur-lg rounded-[2rem] p-8 transition-all group border border-white shadow-xl shadow-slate-200/40"
              >
                <div className="relative z-10">
-                 <div className={`w-14 h-14 rounded-xl flex items-center justify-center border border-white/60 mb-6 transition-transform group-hover:scale-110 bg-white/50 ${feature.color}`}>
-                    <feature.icon size={28} strokeWidth={2} />
+                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border ${feature.border} mb-6 transition-transform group-hover:scale-110 ${feature.bg} ${feature.color}`}>
+                    <feature.icon size={30} strokeWidth={2} />
                  </div>
-                 <h3 className="text-xl font-display font-semibold text-slate-800 mb-3">{feature.title}</h3>
-                 <p className="text-slate-500 leading-relaxed text-sm/relaxed">{feature.desc}</p>
+                 <h3 className="text-xl font-display font-bold text-slate-800 mb-3">{feature.title}</h3>
+                 <p className="text-slate-600 leading-relaxed font-medium">{feature.desc}</p>
                </div>
              </motion.div>
           ))}

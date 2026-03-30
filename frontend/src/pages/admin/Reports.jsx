@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Download, TrendingUp, Users, BookOpen, IndianRupee, History, Calendar } from 'lucide-react';
+import { Download, Users, BookOpen, IndianRupee, History, Calendar, Wallet } from 'lucide-react';
 import AnimatedCard from '../../components/AnimatedCard';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -37,31 +37,30 @@ ChartJS.register(
 const Reports = () => {
   const { user } = useAuth();
   
-  // State for raw un-filtered data
   const [rawData, setRawData] = useState({
-    users: [], books: [], issues: [], defaultStats: null
+    users: [], books: [], issues: [], fines: [], defaultStats: null
   });
   
-  // State for the Date Filter
   const [dates, setDates] = useState({ startDate: '', endDate: '' });
   const [isLoading, setIsLoading] = useState(true);
 
-  // 1. Fetch ALL data on mount
   useEffect(() => {
     const fetchAllData = async () => {
       try {
-        const [statsRes, usersRes, booksRes, issuesRes] = await Promise.all([
+        const [statsRes, usersRes, booksRes, issuesRes, finesRes] = await Promise.all([
            api.get('/dashboard/stats'),
            api.get('/users'),
            api.get('/books'),
-           api.get('/issues')
+           api.get('/issues'),
+           api.get('/fines').catch(() => ({ data: [] })) 
         ]);
 
         setRawData({
            defaultStats: statsRes.data,
            users: usersRes.data,
            books: booksRes.data,
-           issues: issuesRes.data
+           issues: issuesRes.data,
+           fines: finesRes.data
         });
       } catch (error) {
         console.error("Failed to fetch report data", error);
@@ -72,52 +71,61 @@ const Reports = () => {
     fetchAllData();
   }, []);
 
-  // 2. Automatically recalculate ALL stats when dates change
   const data = useMemo(() => {
     if (!rawData.defaultStats) return null;
 
-    // Helper function to check if a record falls within the chosen dates
     const isWithinRange = (item) => {
       if (!dates.startDate && !dates.endDate) return true;
-      const dateStr = item.createdAt || item.created_at || item.issue_date || item.issueDate;
-      if (!dateStr) return true; 
+      
+      const dateStr = item.createdAt || item.created_at || item.issue_date || item.issueDate || item.date;
+      if (!dateStr) return false; 
 
       const itemDate = new Date(dateStr);
       const start = dates.startDate ? new Date(dates.startDate) : new Date('2000-01-01');
       const end = dates.endDate ? new Date(dates.endDate) : new Date('2100-01-01');
-      end.setHours(23, 59, 59, 999); // Include the whole end day
+      end.setHours(23, 59, 59, 999); 
 
       return itemDate >= start && itemDate <= end;
     };
 
-    // Filter the raw data arrays
     const filteredUsers = rawData.users.filter(isWithinRange);
     const filteredBooks = rawData.books.filter(isWithinRange);
     const filteredIssues = rawData.issues.filter(isWithinRange);
+    const filteredFines = rawData.fines.filter(isWithinRange);
 
-    // Recalculate Roles
     const roles = filteredUsers.reduce((acc, curr) => {
        acc[curr.role] = (acc[curr.role] || 0) + 1;
        return acc;
     }, {});
 
-    // Recalculate Categories
     const categories = filteredBooks.reduce((acc, curr) => {
        const cat = curr.category || 'Uncategorized';
        acc[cat] = (acc[cat] || 0) + 1;
        return acc;
     }, {});
 
-    // Recalculate Fines
-    const calculatedPending = filteredIssues.reduce((sum, issue) => sum + Number(issue.fineAmount || 0), 0);
+    // FIX: Bulletproof Fine Calculation Logic
+    let calculatedPending = 0;
+    let calculatedCollected = 0;
 
-    // If dates are picked, calculate exact stats for that period. Otherwise, use all-time stats.
+    filteredFines.forEach(f => {
+       // Safely convert string amounts to numbers
+       const amt = Number(f.amount || 0);
+       // Force status to lowercase so "Paid", "PAID", or "paid" all match perfectly
+       const status = String(f.status || '').toLowerCase().trim();
+
+       if (status === 'paid' || status === 'collected') {
+           calculatedCollected += amt;
+       } else if (status === 'pending' || status === 'unpaid') {
+           calculatedPending += amt;
+       }
+    });
+
     const isFiltering = dates.startDate || dates.endDate;
     const stats = isFiltering ? {
       totalUsers: filteredUsers.length,
       totalBooks: filteredBooks.length,
       totalIssued: filteredIssues.length,
-      pendingFinesCount: filteredIssues.filter(i => i.fineAmount > 0).length
     } : rawData.defaultStats;
 
     return {
@@ -132,37 +140,32 @@ const Reports = () => {
          data: Object.values(categories)
        },
        finesPending: calculatedPending,
-       finesCollected: Math.floor(calculatedPending * 1.5) 
+       finesCollected: calculatedCollected 
     };
   }, [rawData, dates]);
 
-
-  // 3. PDF Generator (Automatically uses the filtered data!)
   const generateSystemReportPDF = () => {
     if (!data) return;
     const doc = new jsPDF();
 
-    // Report Header
     doc.setFontSize(22);
-    doc.setTextColor(30, 41, 59); // Slate-800
-    doc.text("Liborbit Official", 14, 20);
+    doc.setTextColor(30, 41, 59);
+    doc.text("LibOrbit Official", 14, 20);
 
     doc.setFontSize(14);
-    doc.setTextColor(79, 70, 229); // Indigo-600
+    doc.setTextColor(79, 70, 229);
     doc.text("System Analytics & Summary Report", 14, 30);
 
     doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139); // Slate-500
+    doc.setTextColor(100, 116, 139);
     doc.text(`Generated by: ${user?.name || 'Administrator'}`, 14, 38);
     
-    // Add the specific Date Range to the PDF
     const dateRangeText = (dates.startDate || dates.endDate) 
         ? `Reporting Period: ${dates.startDate || 'Beginning'} to ${dates.endDate || 'Present'}` 
         : `Reporting Period: All Time`;
     doc.text(dateRangeText, 14, 44);
     doc.text(`Export Date: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 14, 50);
 
-    // Section 1: Overall Financial & System Summary
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
     doc.text("1. Overall System Summary", 14, 62);
@@ -174,14 +177,14 @@ const Reports = () => {
       body: [
         ['Total Books Added', data.stats.totalBooks.toString()],
         ['Total Accounts Registered', data.stats.totalUsers.toString()],
-        ['Books Issued', data.stats.totalIssued.toString()],
-        ['Pending Fines Accrued', `Rs. ${data.finesPending}`]
+        ['Total Books Issued', data.stats.totalIssued.toString()],
+        ['Total Fines Collected (Paid)', `Rs. ${data.finesCollected}`],
+        ['Total Pending Fines (Unpaid)', `Rs. ${data.finesPending}`]
       ],
       styles: { fontSize: 10, cellPadding: 4 },
       alternateRowStyles: { fillColor: [248, 250, 252] }
     });
 
-    // Section 2: User Demographics
     let currentY = doc.lastAutoTable.finalY + 15;
     doc.text("2. User Role Distribution", 14, currentY);
 
@@ -199,7 +202,6 @@ const Reports = () => {
       alternateRowStyles: { fillColor: [248, 250, 252] }
     });
 
-    // Section 3: Catalog Breakdown by Category
     currentY = doc.lastAutoTable.finalY + 15;
     if (currentY > 230) { doc.addPage(); currentY = 20; }
     doc.text("3. Catalog Inventory by Category", 14, currentY);
@@ -228,8 +230,8 @@ const Reports = () => {
      return (
        <div className="space-y-6">
           <div className="h-24 bg-slate-100 animate-pulse rounded-2xl"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-             {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-slate-100 animate-pulse rounded-2xl"></div>)}
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+             {[...Array(5)].map((_, i) => <div key={i} className="h-32 bg-slate-100 animate-pulse rounded-2xl"></div>)}
           </div>
        </div>
      );
@@ -237,7 +239,6 @@ const Reports = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-4 border-b border-slate-200">
         <div>
           <h1 className="text-4xl font-display font-bold text-slate-800 tracking-tight mb-2">
@@ -255,7 +256,6 @@ const Reports = () => {
         </button>
       </div>
 
-      {/* NEW: Date Range Filter Bar */}
       <AnimatedCard className="p-4 border-slate-200 shadow-sm bg-white">
         <div className="flex flex-col md:flex-row gap-4 items-end">
            <div className="flex flex-1 items-center gap-3">
@@ -268,7 +268,7 @@ const Reports = () => {
                   type="date" 
                   value={dates.startDate}
                   onChange={(e) => setDates({...dates, startDate: e.target.value})}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-colors text-slate-700 font-medium"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-colors text-slate-700 font-medium cursor-pointer"
                 />
               </div>
            </div>
@@ -277,8 +277,10 @@ const Reports = () => {
               <input 
                 type="date" 
                 value={dates.endDate}
+                min={dates.startDate} 
                 onChange={(e) => setDates({...dates, endDate: e.target.value})}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-colors text-slate-700 font-medium"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-colors text-slate-700 font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!dates.startDate}
               />
            </div>
            {(dates.startDate || dates.endDate) && (
@@ -293,50 +295,58 @@ const Reports = () => {
       </AnimatedCard>
 
       <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
-         {/* Summary Cards */}
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
-               <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <BookOpen size={28} />
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            <AnimatedCard variants={itemVariants} className="p-5 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
+               <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <BookOpen size={24} />
                </div>
                <div>
-                  <div className="text-sm font-semibold text-slate-500 mb-1">Books Added</div>
-                  <div className="text-3xl font-display font-bold text-slate-800">{data.stats.totalBooks}</div>
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Books Added</div>
+                  <div className="text-2xl font-display font-bold text-slate-800">{data.stats.totalBooks}</div>
                </div>
             </AnimatedCard>
 
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
-               <div className="w-14 h-14 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                  <Users size={28} />
+            <AnimatedCard variants={itemVariants} className="p-5 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
+               <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                  <Users size={24} />
                </div>
                <div>
-                  <div className="text-sm font-semibold text-slate-500 mb-1">Users Joined</div>
-                  <div className="text-3xl font-display font-bold text-slate-800">{data.stats.totalUsers}</div>
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Users Joined</div>
+                  <div className="text-2xl font-display font-bold text-slate-800">{data.stats.totalUsers}</div>
                </div>
             </AnimatedCard>
 
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
-               <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                  <History size={28} />
+            <AnimatedCard variants={itemVariants} className="p-5 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
+               <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <History size={24} />
                </div>
                <div>
-                  <div className="text-sm font-semibold text-slate-500 mb-1">Books Issued</div>
-                  <div className="text-3xl font-display font-bold text-slate-800">{data.stats.totalIssued}</div>
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Books Issued</div>
+                  <div className="text-2xl font-display font-bold text-slate-800">{data.stats.totalIssued}</div>
                </div>
             </AnimatedCard>
 
-            <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex items-center gap-4 bg-white">
-               <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                  <IndianRupee size={28} />
+            <AnimatedCard variants={itemVariants} className="p-5 border-emerald-100 shadow-sm flex items-center gap-4 bg-emerald-50/30">
+               <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Wallet size={24} />
                </div>
                <div>
-                  <div className="text-sm font-semibold text-slate-500 mb-1">Accrued Fines</div>
-                  <div className="text-3xl font-display font-bold text-slate-800">₹{data.finesPending}</div>
+                  <div className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-1">Collected Fines</div>
+                  <div className="text-2xl font-display font-bold text-emerald-800">₹{data.finesCollected}</div>
+               </div>
+            </AnimatedCard>
+
+            <AnimatedCard variants={itemVariants} className="p-5 border-rose-100 shadow-sm flex items-center gap-4 bg-rose-50/30">
+               <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <IndianRupee size={24} />
+               </div>
+               <div>
+                  <div className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-1">Pending Fines</div>
+                  <div className="text-2xl font-display font-bold text-rose-800">₹{data.finesPending}</div>
                </div>
             </AnimatedCard>
          </div>
 
-         {/* Charts Section */}
          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <AnimatedCard variants={itemVariants} className="p-6 border-slate-200 shadow-sm flex flex-col items-center bg-white">
                <h3 className="text-xl font-display font-semibold text-slate-800 mb-6 self-start">User Demographics (Period)</h3>

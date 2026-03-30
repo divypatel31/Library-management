@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import Input from '../../components/Input';
-import { Library, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Library, ArrowRight, AlertCircle, CheckCircle2, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+
+// 1. IMPORT YOUR LOCAL IMAGE HERE
+import libraryBg from '../../assets/library.jpg';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(''); // Added success state
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
@@ -37,7 +41,6 @@ const Login = () => {
     setError('');
     setSuccess('');
 
-    // Calls the login function from your AuthContext
     const res = await login(email, password);
     
     setIsLoading(false);
@@ -45,7 +48,6 @@ const Login = () => {
     if (res && res.success) {
        setSuccess('Verification complete! Logging you in...');
        
-       // Wait 1.5 seconds so they can read the success message!
        setTimeout(() => {
          const roleMap = {
            admin: '/admin',
@@ -56,47 +58,47 @@ const Login = () => {
          navigate(roleMap[res.role?.toLowerCase()] || '/');
        }, 1500);
     } else {
-       // Shows the error from the backend safely
        setError(res?.message || 'Invalid email or password. Please try again.');
     }
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-slate-50 flex items-center justify-center p-6">
+    <div className="min-h-screen relative flex items-center justify-center p-6">
       
-      {/* Abstract Animated Background */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-indigo-200/40 blur-3xl animate-blob"></div>
-        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-cyan-200/40 blur-3xl animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-[20%] left-[20%] w-[60%] h-[40%] rounded-full bg-fuchsia-200/40 blur-3xl animate-blob animation-delay-4000"></div>
-        <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px]"></div>
+      {/* 2. USE YOUR LOCAL IMAGE AS THE BACKGROUND */}
+      <div 
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        style={{ 
+          backgroundImage: `url(${libraryBg})`, 
+        }}
+      >
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"></div>
       </div>
 
       <motion.div 
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.4, type: 'spring' }}
+        transition={{ duration: 0.5, type: 'spring' }}
         className="w-full max-w-md relative z-10"
       >
-        <div className="glass-panel rounded-[2rem] p-8 sm:p-10 relative overflow-hidden shadow-xl shadow-slate-200/50 bg-white border border-slate-100">
+        <div className="bg-white/85 backdrop-blur-xl rounded-[2rem] p-8 sm:p-10 relative overflow-hidden shadow-2xl shadow-black/40 border border-white/50">
           
           <div className="flex flex-col items-center mb-8">
             <motion.div 
               whileHover={{ rotate: 180 }}
               transition={{ duration: 0.5 }}
-              className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-5 shrink-0 shadow-sm"
+              className="w-16 h-16 rounded-2xl bg-indigo-600/10 border border-indigo-600/20 flex items-center justify-center mb-5 shrink-0 shadow-sm backdrop-blur-md"
             >
-              <Library className="text-indigo-600" size={32} strokeWidth={2.5} />
+              <Library className="text-indigo-700" size={32} strokeWidth={2.5} />
             </motion.div>
-            <h2 className="text-2xl font-display font-bold text-slate-800 tracking-tight mb-2">Welcome to LibOrbit</h2>
-            <p className="text-slate-500 text-center text-sm">
+            <h2 className="text-2xl font-display font-bold text-slate-900 tracking-tight mb-2">Welcome to LibOrbit</h2>
+            <p className="text-slate-600 text-center text-sm font-medium">
               Sign in to manage library resources securely.
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-5">
             
-            {/* Proper UI Error & Success Display */}
             <AnimatePresence mode="wait">
               {error && (
                 <motion.div 
@@ -106,7 +108,7 @@ const Login = () => {
                   exit={{ opacity: 0, y: -10, height: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="bg-rose-50 text-rose-600 p-3.5 rounded-xl border border-rose-100 flex items-start gap-3 text-sm font-medium mb-1">
+                  <div className="bg-rose-50/90 backdrop-blur-sm text-rose-700 p-3.5 rounded-xl border border-rose-200 flex items-start gap-3 text-sm font-bold mb-1 shadow-sm">
                     <AlertCircle size={18} className="shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>
@@ -121,7 +123,7 @@ const Login = () => {
                   exit={{ opacity: 0, y: -10, height: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl border border-emerald-200 flex items-start gap-3 text-sm font-bold mb-1">
+                  <div className="bg-emerald-50/90 backdrop-blur-sm text-emerald-700 p-3.5 rounded-xl border border-emerald-200 flex items-start gap-3 text-sm font-bold mb-1 shadow-sm">
                     <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
                     <span>{success}</span>
                   </div>
@@ -129,39 +131,63 @@ const Login = () => {
               )}
             </AnimatePresence>
 
-            <Input
-              id="email"
-              label="Email Address"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            
             <div>
-              <Input
-                id="password"
-                label="Password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <label className="block text-sm font-bold text-slate-800 mb-1.5">Email Address</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-slate-300/60 rounded-xl focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 sm:text-sm transition-all text-slate-900 bg-white/60 backdrop-blur-sm font-medium placeholder-slate-400"
+                  placeholder="you@example.com"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-1.5">Password</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-10 pr-10 py-3 border border-slate-300/60 rounded-xl focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 sm:text-sm transition-all text-slate-900 bg-white/60 backdrop-blur-sm font-medium placeholder-slate-400"
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-indigo-600 focus:outline-none transition-colors disabled:opacity-50"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
               
               <div className="flex justify-end mt-2">
-                <Link to="/forgot-password" className="text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors">
+                <Link to="/forgot-password" className="text-sm font-bold text-indigo-700 hover:text-indigo-800 transition-colors drop-shadow-sm">
                   Forgot password?
                 </Link>
               </div>
             </div>
 
             <motion.button
-              whileHover={{ y: -1 }}
+              whileHover={{ y: -2 }}
               whileTap={{ scale: 0.98 }}
               disabled={isLoading}
               type="submit"
-              className={`w-full py-3.5 mt-4 rounded-xl flex items-center justify-center gap-2 text-white font-semibold transition-all shadow-md
-                 ${isLoading && !success ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 cursor-pointer'}
+              className={`w-full py-3.5 mt-2 rounded-xl flex items-center justify-center gap-2 text-white font-bold transition-all shadow-lg
+                 ${isLoading && !success ? 'bg-indigo-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-indigo-600/30 cursor-pointer'}
               `}
             >
               {isLoading && !success ? (
@@ -175,8 +201,8 @@ const Login = () => {
             </motion.button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs font-medium text-slate-400">
-             Accounts are provisioned internally. Contact an Administrator or Librarian for access.
+          <div className="mt-8 pt-6 border-t border-slate-300/50 text-center text-xs font-bold text-slate-500">
+             Accounts are provisioned internally.<br/>Contact an Administrator or Librarian for access.
           </div>
         </div>
       </motion.div>

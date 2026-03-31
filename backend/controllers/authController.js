@@ -51,7 +51,7 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// 3. Send OTP (API METHOD - No SMTP needed)
+// 3. Send OTP (API METHOD WITH SAFETY CHECKS)
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;
   
@@ -59,6 +59,15 @@ exports.forgotPassword = async (req, res) => {
     const [users] = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
     if (users.length === 0) {
       return res.status(404).json({ message: 'User with this email does not exist' });
+    }
+
+    // --- SAFETY CHECK: Ensure variables exist ---
+    const senderEmail = process.env.BREVO_USER;
+    const apiKey = process.env.BREVO_KEY;
+
+    if (!senderEmail || !apiKey) {
+      console.error("❌ MISSING VARIABLES: BREVO_USER or BREVO_KEY is empty or undefined in Render!");
+      return res.status(500).json({ message: 'Server configuration error. Please check Render Environment Variables.' });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -72,13 +81,13 @@ exports.forgotPassword = async (req, res) => {
       method: 'POST',
       headers: {
         'accept': 'application/json',
-        'api-key': process.env.BREVO_KEY, // Use your Brevo API Key here
+        'api-key': apiKey,
         'content-type': 'application/json'
       },
       body: JSON.stringify({
         sender: { 
           name: "LibOrbit Support", 
-          email: process.env.BREVO_USER // The email you verified in Brevo
+          email: senderEmail
         },
         to: [{ email: email }],
         subject: "Library Password Reset OTP",
@@ -96,7 +105,7 @@ exports.forgotPassword = async (req, res) => {
     const result = await response.json();
 
     if (!response.ok) {
-      console.error("Brevo API Error:", result);
+      console.error("❌ Brevo API Error:", result);
       throw new Error(result.message || "Failed to send email via API");
     }
 

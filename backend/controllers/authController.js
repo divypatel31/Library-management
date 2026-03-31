@@ -6,7 +6,8 @@ const jwt = require('jsonwebtoken');
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
   try {
-    const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    // ⚠️ ADDED 'BINARY' to force strictly case-sensitive matching
+    const [users] = await db.query('SELECT * FROM users WHERE BINARY email = ?', [email]);
     if (users.length === 0) return res.status(401).json({ message: 'Invalid credentials' });
 
     const user = users[0];
@@ -41,6 +42,12 @@ exports.registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
+    // Check if the exact case-sensitive email already exists to prevent duplicates
+    const [existing] = await db.query('SELECT user_id FROM users WHERE BINARY email = ?', [email]);
+    if (existing.length > 0) {
+       return res.status(400).json({ message: 'User with this exact email already exists' });
+    }
+
     await db.query(
       'INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, ?)',
       [name, email, hashedPassword, role ? role.toLowerCase() : 'student']
@@ -51,17 +58,17 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// 3. Send OTP (API METHOD WITH SAFETY CHECKS)
+// 3. Send OTP
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;
   
   try {
-    const [users] = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
+    // ⚠️ Added BINARY here too
+    const [users] = await db.query('SELECT user_id FROM users WHERE BINARY email = ?', [email]);
     if (users.length === 0) {
-      return res.status(404).json({ message: 'User with this email does not exist' });
+      return res.status(404).json({ message: 'User with this exact email does not exist' });
     }
 
-    // --- SAFETY CHECK: Ensure variables exist ---
     const senderEmail = process.env.BREVO_USER;
     const apiKey = process.env.BREVO_KEY;
 
@@ -73,10 +80,9 @@ exports.forgotPassword = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 15 * 60000); // 15 mins
 
-    // Save to Database
-    await db.query('UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE email = ?', [otp, expires, email]);
+    // ⚠️ Added BINARY here too
+    await db.query('UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE BINARY email = ?', [otp, expires, email]);
 
-    // Send Email via Brevo API
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -120,7 +126,8 @@ exports.forgotPassword = async (req, res) => {
 exports.verifyOTP = async (req, res) => {
   const { email, otp } = req.body;
   try {
-    const [users] = await db.query('SELECT user_id FROM users WHERE email = ? AND reset_otp = ? AND reset_otp_expires > NOW()', [email, otp]);
+    // ⚠️ Added BINARY here too
+    const [users] = await db.query('SELECT user_id FROM users WHERE BINARY email = ? AND reset_otp = ? AND reset_otp_expires > NOW()', [email, otp]);
     
     if (users.length === 0) return res.status(400).json({ message: 'Invalid or expired OTP' });
     
@@ -134,14 +141,16 @@ exports.verifyOTP = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   const { email, otp, newPassword } = req.body;
   try {
-    const [users] = await db.query('SELECT user_id FROM users WHERE email = ? AND reset_otp = ? AND reset_otp_expires > NOW()', [email, otp]);
+    // ⚠️ Added BINARY here too
+    const [users] = await db.query('SELECT user_id FROM users WHERE BINARY email = ? AND reset_otp = ? AND reset_otp_expires > NOW()', [email, otp]);
     if (users.length === 0) return res.status(400).json({ message: 'Invalid or expired OTP' });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
+    // ⚠️ Added BINARY here too
     await db.query(
-      'UPDATE users SET password = ?, reset_otp = NULL, reset_otp_expires = NULL WHERE email = ?', 
+      'UPDATE users SET password = ?, reset_otp = NULL, reset_otp_expires = NULL WHERE BINARY email = ?', 
       [hashedPassword, email]
     );
 

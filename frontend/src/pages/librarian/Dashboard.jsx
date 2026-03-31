@@ -91,7 +91,7 @@ const Dashboard = () => {
     { title: 'Total Books in Catalog', value: stats.totalBooks, icon: BookOpen, color: 'text-sky-600', bg: 'bg-sky-50 border-sky-100' },
     { title: 'Currently Issued', value: stats.totalIssued, icon: History, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100' },
     { title: 'Pending Fines', value: stats.pendingFinesCount, icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50 border-rose-100' },
-    { title: 'Pending Requests', value: stats.pendingRequestsCount, icon: History, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-100' },
+    { title: 'Pending Standard Requests', value: stats.pendingRequestsCount, icon: History, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-100' },
   ];
 
   return (

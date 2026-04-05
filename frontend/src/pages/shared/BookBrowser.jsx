@@ -72,6 +72,14 @@ const BookBrowser = () => {
   const handleAddBook = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    // FIX: Strict ISBN Validation (Only 10 or 13 digits)
+    if (!/^(\d{10}|\d{13})$/.test(addForm.isbn)) {
+       alert('Invalid Entry: ISBN must be exactly 10 or 13 digits long.');
+       setIsSubmitting(false);
+       return;
+    }
+
     try {
        const payload = { ...addForm, quantity: parseInt(addForm.quantity) || 1 };
        await api.post('/books', payload);
@@ -300,7 +308,21 @@ const BookBrowser = () => {
               <Input label="Author" required value={addForm.author} onChange={e => setAddForm({...addForm, author: e.target.value})} placeholder="e.g. Gang of Four" />
            </div>
            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <Input label="ISBN" required value={addForm.isbn} onChange={e => setAddForm({...addForm, isbn: e.target.value})} placeholder="Unique identifier" />
+              
+              {/* FIX: ISBN Input restricts to numbers only dynamically */}
+              <Input 
+                label="ISBN" 
+                required 
+                value={addForm.isbn} 
+                onChange={e => {
+                  const onlyNums = e.target.value.replace(/\D/g, ''); // Strips out all letters/symbols
+                  if (onlyNums.length <= 13) {
+                     setAddForm({...addForm, isbn: onlyNums});
+                  }
+                }} 
+                placeholder="10 or 13 digits" 
+              />
+              
               <Input label="Category" required value={addForm.category} onChange={e => setAddForm({...addForm, category: e.target.value})} placeholder="e.g. Computer Science" />
               <Input label="Quantity" required type="number" min="1" value={addForm.quantity} onChange={e => setAddForm({...addForm, quantity: e.target.value})} placeholder="e.g. 5" />
            </div>
@@ -330,7 +352,6 @@ const BookBrowser = () => {
                   onChange={e => setRequestForm({...requestForm, reason: e.target.value})} 
                   rows="3" 
                   placeholder="Why do you need this book? (e.g., Required for CS-101 coursework)"
-                  /* THE FIX: Added text-slate-800, bg-white, and placeholder-slate-400 */
                   className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-slate-800 bg-white placeholder-slate-400"
                 ></textarea>
               </div>

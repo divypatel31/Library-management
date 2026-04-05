@@ -115,4 +115,4 @@ exports.getChartData = async (req, res) => {
      console.error(`[CHART ERROR]:`, error);
      return res.status(500).json({ message: 'Server error: ' + error.message });
    }
-};
+};  

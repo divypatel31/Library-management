@@ -61,8 +61,8 @@ const UserDashboard = () => {
   };
 
   const statCards = [
-    { title: 'Books Currently Issued', value: stats.totalIssued, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-100' },
-    { title: 'Total Reading History', value: stats.totalIssued * 3, icon: History, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100' },
+    { title: 'Books Currently Issued', value: stats.totalIssued || 0, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-100' },
+    { title: 'Total Reading History', value: stats.totalHistory || stats.totalIssued || 0, icon: History, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100' },
   ];
 
   return (

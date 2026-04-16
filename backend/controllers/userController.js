@@ -43,7 +43,7 @@ exports.deleteUser = async (req, res) => {
     const userIdToDelete = req.params.id;
     const requesterRole = req.user.role; // This will be 'Admin' or 'Librarian'
 
-    // 1. Find the user being deleted to check their role
+    // 1. Find the user being deleted
     const [targetUsers] = await db.query('SELECT role FROM users WHERE user_id = ?', [userIdToDelete]);
 
     if (targetUsers.length === 0) {
@@ -52,13 +52,28 @@ exports.deleteUser = async (req, res) => {
 
     const targetRole = targetUsers[0].role;
 
-    // 2. SMART SECURITY CHECK: 
-    // If the requester is a Librarian, block them from deleting Admins or other Librarians
+    // 2. SMART SECURITY CHECK
     if (requesterRole === 'Librarian' && (targetRole === 'Admin' || targetRole === 'Librarian')) {
       return res.status(403).json({ message: 'Access Denied: Librarians can only delete Students and Professors.' });
     }
 
-    // 3. If they pass the check (or if they are an Admin), delete the user
+    // 3. CHECK FOR ACTIVE BOOKS OR FINES (Prevent deletion if they owe the library!)
+    const [activeIssues] = await db.query('SELECT * FROM issued_books WHERE user_id = ? AND status = "issued"', [userIdToDelete]);
+    if (activeIssues.length > 0) {
+        return res.status(400).json({ message: 'Cannot delete user: They still have books issued to them!' });
+    }
+
+    const [unpaidFines] = await db.query('SELECT * FROM fines WHERE user_id = ? AND status = "pending" AND amount > 0', [userIdToDelete]);
+    if (unpaidFines.length > 0) {
+        return res.status(400).json({ message: 'Cannot delete user: They have unpaid fines!' });
+    }
+
+    // 4. CLEANUP FOREIGN KEYS: Safely delete their history so MySQL doesn't throw a 500 error
+    await db.query('DELETE FROM book_requests WHERE user_id = ?', [userIdToDelete]);
+    await db.query('DELETE FROM fines WHERE user_id = ?', [userIdToDelete]);
+    await db.query('DELETE FROM issued_books WHERE user_id = ?', [userIdToDelete]);
+
+    // 5. Finally, delete the user
     await db.query('DELETE FROM users WHERE user_id = ?', [userIdToDelete]);
     res.json({ message: 'User deleted successfully' });
     
@@ -66,8 +81,8 @@ exports.deleteUser = async (req, res) => {
     console.error('Delete User Error:', error);
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
-};  
-// Add this at the bottom of userController.js
+};
+
 exports.getUserByIdentifier = async (req, res) => {
   try {
     const { identifier } = req.params;
@@ -95,7 +110,6 @@ exports.getUserByIdentifier = async (req, res) => {
   }
 };
 
-// Bulletproof Update User Function
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -131,8 +145,6 @@ exports.updateUser = async (req, res) => {
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };
-
-// backend/controllers/userController.js
 
 exports.getWalletBalance = async (req, res) => {
   try {

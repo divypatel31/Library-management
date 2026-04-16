@@ -55,8 +55,10 @@ const UserManagement = () => {
         try {
            await api.delete(`/users/${id}`);
            setUsers(users.filter(u => u._id !== id));
+           alert("User deleted successfully.");
         } catch (error) {
-           console.error("Failed to delete user");
+           console.error("Failed to delete user", error);
+           alert(error.response?.data?.message || "Failed to delete user due to a server error.");
         }
      }
   };
